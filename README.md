@@ -40,6 +40,44 @@ Together these are meant to prove the platform is generic — i.e., that new
 agents can be added as configuration on top of the same runtime, not as
 one-off scripts — while also being directly useful fund-operations tooling.
 
+## Project structure
+
+```
+backend/
+  app/
+    api/                        # FastAPI routes (wraps the LangGraph runtime)
+    core/                       # settings/config loading
+    platform/                   # the "mini Orchestrate" platform layer
+      schema/                   # Pydantic agent-definition schema
+      runtime/                  # LangGraph runtime factory (builds graphs from YAML defs)
+      tools/                    # tool registry (Python tools, OpenAPI-to-tool, MCP)
+      rag/                      # Chroma-backed knowledge base / retrieval
+      guardrails/               # guideline injection, optional NeMo rails
+      audit/                    # append-only audit log
+    agents/                     # agent catalog definitions (YAML configs)
+      trustee_compliance_reporting/
+      stock_reconciliation/
+  tests/
+  .env / .env.example           # LLM keys, Neon Postgres URL, Langfuse keys, Chroma dir
+
+frontend/
+  streamlit_app/                # MVP builder + chat UI
+  react_app/                    # stretch goal (React + React Flow canvas), empty for now
+  .env / .env.example           # backend API URL only — no secrets live here
+
+data/
+  mock/
+    fund_ledger/                # mock fund accounting records
+    custodian_statements/       # mock custodian records (seeded with breaks)
+    trade_blotter/               # mock trade/corporate-actions context
+    compliance_docs/             # mandate limits + regulatory text for RAG
+  chroma/                        # local vector store persistence (gitignored)
+```
+
+No implementation code lives in these folders yet — just the skeleton
+(`.gitkeep` placeholders) so development can start directly without setup
+friction.
+
 ## Status
 
 **Early planning stage.** Architecture, tech stack, and prerequisites are

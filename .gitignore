@@ -1,0 +1,38 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Vector DB / local data
+data/chroma/
+*.sqlite3
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Node (React + React Flow, if/when added)
+node_modules/
+dist/
+build/
+
+# Docker
+*.env.docker
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
