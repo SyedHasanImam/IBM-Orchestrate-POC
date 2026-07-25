@@ -67,12 +67,17 @@ frontend/
 
 data/
   mock/
-    fund_ledger/                # mock fund accounting records
-    custodian_statements/       # mock custodian records (seeded with breaks)
-    trade_blotter/               # mock trade/corporate-actions context
-    compliance_docs/             # mandate limits + regulatory text for RAG
-  chroma/                        # local vector store persistence (gitignored)
+    fund_holdings/               # portfolio composition (sector/asset_class/issuer) — compliance agent input
+    fund_ledger/                 # fund's internal accounting records — reconciliation agent input
+    custodian_statements/        # custodian's records for the same fund (seeded with breaks)
+    trade_blotter/                # trade + corporate-actions context, for break classification
+    compliance_docs/              # mandate limits (investment_mandate.md) + SECP regulatory excerpts, for RAG
+  chroma/                         # local vector store persistence (gitignored)
 ```
+
+Dataset is Meezan Islamic Fund (SECP/Pakistan-regulated, CDC as trustee) — all
+compliance logic and citations are SECP/NBFC Regulations 2008-based, not
+US-style (no ICA/Rule 22e-4 concepts anywhere in this project).
 
 No implementation code lives in these folders yet — just the skeleton
 (`.gitkeep` placeholders) so development can start directly without setup
