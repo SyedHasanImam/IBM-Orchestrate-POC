@@ -15,8 +15,8 @@ def test_get_fund_holdings_returns_all_22_rows():
     assert "CASH-001" in security_ids
 
 
-def test_agent_summarizes_holdings_correctly():
-    graph = build_data_aggregation_agent()
+def test_agent_summarizes_holdings_correctly(checkpointer):
+    graph = build_data_aggregation_agent(checkpointer)
     config = {"configurable": {"thread_id": "phase2-test-summary"}}
 
     result = graph.invoke(
@@ -39,8 +39,8 @@ def test_agent_summarizes_holdings_correctly():
     assert "OGDC" in final_text or "Oil & Gas Development" in final_text
 
 
-def test_thread_state_persists_across_invocations():
-    graph = build_data_aggregation_agent()
+def test_thread_state_persists_across_invocations(checkpointer):
+    graph = build_data_aggregation_agent(checkpointer)
     config = {"configurable": {"thread_id": "phase2-test-memory"}}
 
     graph.invoke(

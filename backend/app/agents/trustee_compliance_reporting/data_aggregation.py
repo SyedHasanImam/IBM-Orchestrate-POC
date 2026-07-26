@@ -1,6 +1,6 @@
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from app.core.config import settings
 from app.platform.tools.fund_holdings import get_fund_holdings
@@ -15,11 +15,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_data_aggregation_agent():
+def build_data_aggregation_agent(checkpointer: BaseCheckpointSaver | None):
     model = init_chat_model(settings.aggregation_model)
     return create_agent(
         model,
         tools=[get_fund_holdings],
         system_prompt=SYSTEM_PROMPT,
-        checkpointer=MemorySaver(),
+        checkpointer=checkpointer,
     )
