@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from app.core.config import settings
+from app.core.config import LLM_MAX_RETRIES, LLM_TIMEOUT_SECONDS, settings
 from app.platform.rag.retrieval import search_compliance_kb
 
 SYSTEM_PROMPT = (
@@ -28,7 +28,11 @@ SYSTEM_PROMPT = (
 
 
 def build_compliance_agent(checkpointer: BaseCheckpointSaver | None):
-    model = init_chat_model(settings.compliance_model)
+    model = init_chat_model(
+        settings.compliance_model,
+        timeout=LLM_TIMEOUT_SECONDS,
+        max_retries=LLM_MAX_RETRIES,
+    )
     return create_agent(
         model,
         tools=[search_compliance_kb],

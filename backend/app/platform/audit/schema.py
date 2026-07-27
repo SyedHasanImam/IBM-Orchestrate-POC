@@ -1,6 +1,6 @@
 import psycopg
 
-from app.core.config import settings
+from app.core.config import DB_CONNECT_TIMEOUT_SECONDS, settings
 
 AGENT_REGISTRY_DDL = """
 CREATE TABLE IF NOT EXISTS agent_registry (
@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
 def ensure_schema() -> None:
     """Create the core platform tables (agent registry, audit log) if they
     don't already exist yet. Idempotent — safe to call on every startup."""
-    with psycopg.connect(settings.database_url) as conn:
+    with psycopg.connect(
+        settings.database_url, connect_timeout=DB_CONNECT_TIMEOUT_SECONDS
+    ) as conn:
         with conn.cursor() as cur:
             cur.execute(AGENT_REGISTRY_DDL)
             cur.execute(AUDIT_LOG_DDL)

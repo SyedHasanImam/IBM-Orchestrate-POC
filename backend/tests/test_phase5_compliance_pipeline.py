@@ -4,6 +4,7 @@ from app.agents.trustee_compliance_reporting.pipeline import (
     build_compliance_report_pipeline,
 )
 from app.platform.rag.ingest import ingest_compliance_documents
+from app.platform.runtime.checkpointer import postgres_checkpointer
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -14,8 +15,10 @@ def ingested_kb():
 
 @pytest.fixture(scope="module")
 def pipeline_result():
-    pipeline = build_compliance_report_pipeline()
-    return pipeline.invoke({})
+    with postgres_checkpointer() as checkpointer:
+        pipeline = build_compliance_report_pipeline(checkpointer)
+        config = {"configurable": {"thread_id": "phase5-test-report"}}
+        yield pipeline.invoke({}, config=config)
 
 
 def test_exposure_summary_matches_known_ground_truth(pipeline_result):

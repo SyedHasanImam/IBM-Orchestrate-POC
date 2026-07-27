@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from app.core.config import settings
+from app.core.config import LLM_MAX_RETRIES, LLM_TIMEOUT_SECONDS, settings
 
 SYSTEM_PROMPT = (
     "You are the Reporting Agent for a mutual fund's monthly trustee "
@@ -17,7 +17,11 @@ SYSTEM_PROMPT = (
 
 
 def build_reporting_agent(checkpointer: BaseCheckpointSaver | None):
-    model = init_chat_model(settings.reporting_model)
+    model = init_chat_model(
+        settings.reporting_model,
+        timeout=LLM_TIMEOUT_SECONDS,
+        max_retries=LLM_MAX_RETRIES,
+    )
     return create_agent(
         model,
         tools=None,

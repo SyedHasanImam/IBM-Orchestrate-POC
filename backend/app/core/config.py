@@ -10,6 +10,16 @@ BACKEND_ENV_PATH = PROJECT_ROOT / "backend" / ".env"
 
 load_dotenv(dotenv_path=BACKEND_ENV_PATH)
 
+# Gemini calls have no default timeout (can hang indefinitely on a network
+# stall) and default to 6 retries. Bound both so a transient network blip
+# fails fast and predictably instead of hanging the whole pipeline.
+LLM_TIMEOUT_SECONDS = 60
+LLM_MAX_RETRIES = 2
+
+# Raw psycopg connections (outside the pooled checkpointer) also have no
+# default connect timeout — same reasoning applies.
+DB_CONNECT_TIMEOUT_SECONDS = 15
+
 
 @dataclass(frozen=True)
 class Settings:

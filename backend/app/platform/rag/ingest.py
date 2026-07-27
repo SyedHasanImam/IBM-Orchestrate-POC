@@ -1,7 +1,7 @@
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 
-from app.core.config import PROJECT_ROOT, settings
+from app.core.config import LLM_TIMEOUT_SECONDS, PROJECT_ROOT, settings
 from app.platform.rag.loader import load_compliance_documents
 
 COLLECTION_NAME = "compliance_docs"
@@ -9,7 +9,11 @@ COLLECTION_NAME = "compliance_docs"
 
 def _embeddings():
     provider, _, model_name = settings.embedding_model.partition(":")
-    return init_embeddings(model_name, provider=provider)
+    return init_embeddings(
+        model_name,
+        provider=provider,
+        request_options={"timeout": LLM_TIMEOUT_SECONDS},
+    )
 
 
 def get_compliance_vector_store() -> Chroma:
