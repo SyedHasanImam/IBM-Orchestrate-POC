@@ -1,6 +1,14 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
+
+
+class CatalogEntry(BaseModel):
+    name: str
+    description: str
+    version: str
+    updated_at: datetime
 
 
 class RunReportResponse(BaseModel):
@@ -18,3 +26,14 @@ class DecisionRequest(BaseModel):
 class DecisionResponse(BaseModel):
     audit_log_id: int
     event_type: str
+
+
+class ChatRequest(BaseModel):
+    thread_id: str | None = None
+    message: str
+
+
+class ChatResponse(BaseModel):
+    thread_id: str
+    message: str
+    routed_to: str | None = None

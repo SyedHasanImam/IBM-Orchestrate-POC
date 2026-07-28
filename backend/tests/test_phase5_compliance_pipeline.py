@@ -1,10 +1,11 @@
 import pytest
 
-from app.agents.trustee_compliance_reporting.pipeline import (
-    build_compliance_report_pipeline,
-)
+from app.agents.trustee_compliance_reporting import WORKFLOW_YAML_PATH
 from app.platform.rag.ingest import ingest_compliance_documents
 from app.platform.runtime.checkpointer import postgres_checkpointer
+from app.platform.runtime.factory import build_workflow_from_config
+from app.platform.runtime.loader import load_workflow_config
+from app.platform.tools.exposure_summary import get_portfolio_exposure_summary
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -15,14 +16,17 @@ def ingested_kb():
 
 @pytest.fixture(scope="module")
 def pipeline_result():
+    config = load_workflow_config(WORKFLOW_YAML_PATH)
     with postgres_checkpointer() as checkpointer:
-        pipeline = build_compliance_report_pipeline(checkpointer)
-        config = {"configurable": {"thread_id": "phase5-test-report"}}
-        yield pipeline.invoke({}, config=config)
+        pipeline = build_workflow_from_config(config, checkpointer)
+        run_config = {"configurable": {"thread_id": "phase5-test-report"}}
+        yield pipeline.invoke({}, config=run_config)
 
 
-def test_exposure_summary_matches_known_ground_truth(pipeline_result):
-    summary = pipeline_result["exposure_summary"]
+def test_exposure_summary_matches_known_ground_truth():
+    # Deterministic computation, independent of any LLM call — verified
+    # directly against the tool the compliance-checking agent calls.
+    summary = get_portfolio_exposure_summary.invoke({})
     assert summary["largest_single_issuer"]["security_id"] == "PK0080101018"  # OGDC
     assert summary["largest_single_issuer"]["weight_pct"] == pytest.approx(11.81)
     assert summary["sector_totals"]["Oil & Gas Exploration Companies"] == pytest.approx(

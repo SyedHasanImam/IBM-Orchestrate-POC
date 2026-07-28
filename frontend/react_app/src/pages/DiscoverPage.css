@@ -1,0 +1,55 @@
+.discover-page {
+  max-width: 960px;
+}
+
+.discover-subtitle {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.discover-error {
+  color: var(--color-danger);
+}
+
+.discover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.discover-card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--color-bg);
+}
+
+.discover-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.discover-card-name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.discover-card-version {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.discover-card-description {
+  font-size: 14px;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.discover-card-updated {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0;
+}

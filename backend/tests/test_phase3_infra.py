@@ -64,11 +64,11 @@ def test_agent_invocation_traces_to_langfuse_without_error(checkpointer):
 
 
 def test_agent_registry_and_audit_log_tables_exist():
-    """agent_registry stays empty until Phase 8 populates it from YAML.
-    audit_log is NOT asserted empty here — Phase 6 onward deliberately
-    writes real approval/rejection rows to it, so "empty" is only ever a
-    transient truth, not a structural guarantee. This test just confirms
-    both tables exist and are queryable."""
+    """Neither table is asserted empty here — Phase 6 onward writes real
+    approval/rejection rows to audit_log, and Phase 8 onward registers real
+    workflows into agent_registry from YAML on every app startup/test run,
+    so "empty" is only ever a transient truth, not a structural guarantee.
+    This test just confirms both tables exist and are queryable."""
     ensure_schema()
 
     with psycopg.connect(settings.database_url) as conn:
@@ -84,7 +84,7 @@ def test_agent_registry_and_audit_log_tables_exist():
             assert tables == {"agent_registry", "audit_log"}
 
             cur.execute("SELECT count(*) FROM agent_registry;")
-            assert cur.fetchone()[0] == 0
+            assert cur.fetchone()[0] >= 0
 
             cur.execute("SELECT count(*) FROM audit_log;")
             assert cur.fetchone()[0] >= 0

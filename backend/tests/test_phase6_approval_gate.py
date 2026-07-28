@@ -2,12 +2,12 @@ import psycopg
 import pytest
 from langgraph.types import Command
 
-from app.agents.trustee_compliance_reporting.pipeline import (
-    build_compliance_report_pipeline,
-)
+from app.agents.trustee_compliance_reporting import WORKFLOW_YAML_PATH
 from app.core.config import settings
 from app.platform.rag.ingest import ingest_compliance_documents
 from app.platform.runtime.checkpointer import postgres_checkpointer
+from app.platform.runtime.factory import build_workflow_from_config
+from app.platform.runtime.loader import load_workflow_config
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -30,9 +30,10 @@ def _fetch_audit_row(audit_log_id: int):
 def test_pipeline_halts_for_approval_and_resumes_after_simulated_restart():
     thread_id = "phase6-test-approve"
     config = {"configurable": {"thread_id": thread_id}}
+    workflow_config = load_workflow_config(WORKFLOW_YAML_PATH)
 
     with postgres_checkpointer() as checkpointer_a:
-        pipeline_a = build_compliance_report_pipeline(checkpointer_a)
+        pipeline_a = build_workflow_from_config(workflow_config, checkpointer_a)
         result_a = pipeline_a.invoke({}, config=config)
 
     assert "__interrupt__" in result_a
@@ -41,7 +42,7 @@ def test_pipeline_halts_for_approval_and_resumes_after_simulated_restart():
 
     # Simulate a process restart: an entirely separate connection/graph.
     with postgres_checkpointer() as checkpointer_b:
-        pipeline_b = build_compliance_report_pipeline(checkpointer_b)
+        pipeline_b = build_workflow_from_config(workflow_config, checkpointer_b)
         result_b = pipeline_b.invoke(
             Command(
                 resume={
@@ -68,14 +69,15 @@ def test_pipeline_halts_for_approval_and_resumes_after_simulated_restart():
 def test_pipeline_records_rejection_decision():
     thread_id = "phase6-test-reject"
     config = {"configurable": {"thread_id": thread_id}}
+    workflow_config = load_workflow_config(WORKFLOW_YAML_PATH)
 
     with postgres_checkpointer() as checkpointer_a:
-        pipeline_a = build_compliance_report_pipeline(checkpointer_a)
+        pipeline_a = build_workflow_from_config(workflow_config, checkpointer_a)
         result_a = pipeline_a.invoke({}, config=config)
     assert "__interrupt__" in result_a
 
     with postgres_checkpointer() as checkpointer_b:
-        pipeline_b = build_compliance_report_pipeline(checkpointer_b)
+        pipeline_b = build_workflow_from_config(workflow_config, checkpointer_b)
         result_b = pipeline_b.invoke(
             Command(
                 resume={

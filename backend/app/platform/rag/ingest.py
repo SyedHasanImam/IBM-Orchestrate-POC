@@ -1,3 +1,6 @@
+import threading
+
+import chromadb
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 
@@ -5,6 +8,9 @@ from app.core.config import LLM_TIMEOUT_SECONDS, PROJECT_ROOT, settings
 from app.platform.rag.loader import load_compliance_documents
 
 COLLECTION_NAME = "compliance_docs"
+
+_client_lock = threading.Lock()
+_client: chromadb.ClientAPI | None = None
 
 
 def _embeddings():
@@ -16,11 +22,28 @@ def _embeddings():
     )
 
 
+def _get_chroma_client() -> chromadb.ClientAPI:
+    """A single process-wide PersistentClient, built once. Constructing a
+    fresh PersistentClient against the same directory from concurrent
+    threads (as happens when the compliance-checking agent calls
+    search_compliance_kb multiple times in one turn — LangGraph's ToolNode
+    runs those calls concurrently) races on chromadb's internal shared-client
+    bookkeeping and corrupts it. Reusing one client avoids that entirely."""
+    global _client
+    if _client is None:
+        with _client_lock:
+            if _client is None:
+                _client = chromadb.PersistentClient(
+                    path=str(PROJECT_ROOT / settings.chroma_persist_dir)
+                )
+    return _client
+
+
 def get_compliance_vector_store() -> Chroma:
     return Chroma(
         collection_name=COLLECTION_NAME,
         embedding_function=_embeddings(),
-        persist_directory=str(PROJECT_ROOT / settings.chroma_persist_dir),
+        client=_get_chroma_client(),
     )
 
 

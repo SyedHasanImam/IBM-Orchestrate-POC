@@ -1,0 +1,116 @@
+.reports-page {
+  max-width: 760px;
+}
+
+.reports-page > button {
+  padding: 10px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reports-page > button:hover:not(:disabled) {
+  background: var(--color-bg-subtle);
+}
+
+.reports-error {
+  color: var(--color-danger);
+  margin-top: 16px;
+}
+
+.reports-draft {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px 24px;
+  background: var(--color-bg-subtle);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.reports-draft :first-child {
+  margin-top: 0;
+}
+
+.reports-decision {
+  margin-top: 24px;
+}
+
+.reports-decision label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.reports-decision input,
+.reports-decision textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.reports-decision textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.reports-decision-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.reports-decision-buttons button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reports-approve {
+  background: var(--color-primary);
+  color: white;
+}
+
+.reports-approve:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.reports-reject {
+  background: white;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger) !important;
+}
+
+.reports-finalized {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.reports-finalized-approved {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.reports-finalized-rejected {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.reports-finalized button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  font-weight: 600;
+}

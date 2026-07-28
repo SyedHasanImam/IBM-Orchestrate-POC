@@ -1,0 +1,57 @@
+:root {
+  --color-topbar: #161616;
+  --color-topbar-text: #f4f4f4;
+  --color-sidebar: #f4f4f4;
+  --color-sidebar-border: #e0e0e0;
+  --color-sidebar-active: #e8e8e8;
+  --color-sidebar-active-border: #0f62fe;
+  --color-text: #161616;
+  --color-text-muted: #525252;
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f4f4f4;
+  --color-border: #e0e0e0;
+  --color-primary: #0f62fe;
+  --color-primary-hover: #0043ce;
+  --color-danger: #da1e28;
+  --color-success-bg: #defbe6;
+  --color-success-text: #0e6027;
+  --color-warning-bg: #fff8e1;
+  --color-warning-text: #8a5b00;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}

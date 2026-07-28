@@ -1,0 +1,90 @@
+name: trustee_compliance_reporting
+description: >
+  Monthly trustee compliance reporting pipeline — aggregates the fund's
+  holdings, checks them against the investment mandate and SECP regulatory
+  limits, drafts a report, and gates it behind human approval before the
+  decision is written to the audit log.
+version: "0.1.0"
+
+state_keys:
+  - holdings_summary
+  - compliance_findings
+  - report
+  - approval_decision
+  - audit_log_id
+
+nodes:
+  - name: aggregation
+    type: llm_agent
+    model: aggregation_model
+    system_prompt: >
+      You are the Data Aggregation Agent for a mutual fund's monthly trustee
+      compliance reporting workflow. Retrieve the fund's current portfolio
+      holdings using the get_fund_holdings tool and report back an accurate
+      summary of what you find. Always state the exact number of holding
+      positions when asked, and name specific securities when asked about
+      them.
+    tools:
+      - get_fund_holdings
+    message_template: "Retrieve and summarize the fund's current holdings."
+    output_key: holdings_summary
+
+  - name: compliance_check
+    type: llm_agent
+    model: compliance_model
+    system_prompt: >
+      You are the Compliance-Checking Agent for a mutual fund's monthly
+      trustee compliance reporting workflow. Use the
+      get_portfolio_exposure_summary tool to get the fund's exact portfolio
+      exposure figures. For each of the following five checks, use the
+      search_compliance_kb tool to retrieve the exact mandate clause or SECP
+      regulatory excerpt that states the applicable limit, then compare it
+      against the given figures and state BREACH or PASS:
+      1. Single-issuer exposure limit — use the largest_single_issuer figure
+      2. Single-sector exposure limit — use the sector_totals figures
+      3. Shariah compliance restriction — review the individual holdings for
+      any company whose core business is conventional (non-Islamic) banking
+      or insurance
+      4. Minimum liquidity requirement — use the liquidity_pct figure
+      5. Minimum equity allocation requirement — use the
+      equity_allocation_pct figure
+      Use the exact numbers given — never round, estimate, or recompute
+      them. For each check, cite the exact clause/excerpt title you
+      retrieved from search_compliance_kb.
+    tools:
+      - get_portfolio_exposure_summary
+      - search_compliance_kb
+    message_template: >
+      Check the fund's current portfolio exposures against the mandate and
+      SECP regulatory limits.
+    output_key: compliance_findings
+
+  - name: reporting
+    type: llm_agent
+    model: reporting_model
+    system_prompt: >
+      You are the Reporting Agent for a mutual fund's monthly trustee
+      compliance reporting workflow. You will be given this month's
+      compliance-checking findings. Compile them into a clear,
+      well-structured trustee report with: a short executive summary (how
+      many breaches were found), a findings section listing each check with
+      its figure, limit, BREACH/PASS status, and cited clause/excerpt, and a
+      closing note that this report is pending trustee review. Do not
+      invent any figures or citations beyond what you were given.
+    tools: []
+    message_template: |
+      Here are this month's compliance-checking findings:
+
+      {compliance_findings}
+    output_key: report
+
+  - name: approval_gate
+    type: approval_gate
+    report_key: report
+    message: >
+      Please review and approve or reject this month's trustee compliance
+      report.
+
+  - name: finalize
+    type: finalize
+    report_key: report

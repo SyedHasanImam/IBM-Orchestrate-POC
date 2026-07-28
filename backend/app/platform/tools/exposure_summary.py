@@ -1,12 +1,16 @@
 from collections import defaultdict
 
+from langchain_core.tools import tool
+
+from app.platform.tools.fund_holdings import get_fund_holdings
+
 
 def compute_exposure_summary(holdings: list[dict]) -> dict:
-    """Deterministically aggregate the fund's holdings into the figures the
-    Compliance-Checking Agent needs: total weight by sector, total weight by
-    asset class, the single largest equity issuer, liquidity (cash + other
-    assets), and equity allocation. Kept as plain, non-LLM computation so the
-    exact regulatory-relevant numbers are never left to the model to
+    """Deterministically aggregate the fund's holdings into the figures a
+    compliance check needs: total weight by sector, total weight by asset
+    class, the single largest equity issuer, liquidity (cash + other
+    assets), and equity allocation. Kept as plain, non-LLM computation so
+    the exact regulatory-relevant numbers are never left to the model to
     estimate or recompute.
     """
     sector_totals: dict[str, float] = defaultdict(float)
@@ -41,3 +45,15 @@ def compute_exposure_summary(holdings: list[dict]) -> dict:
         "equity_allocation_pct": round(asset_class_totals.get("Equity", 0.0), 2),
         "holdings": holdings,
     }
+
+
+@tool
+def get_portfolio_exposure_summary() -> dict:
+    """Compute the fund's current portfolio exposures needed for compliance
+    checks: sector totals, asset-class totals, the largest single equity
+    issuer, liquidity percentage, and equity allocation percentage. These
+    figures are computed deterministically from the fund's holdings — use
+    them exactly as given, never round, estimate, or recompute them.
+    """
+    holdings = get_fund_holdings.invoke({})
+    return compute_exposure_summary(holdings)
