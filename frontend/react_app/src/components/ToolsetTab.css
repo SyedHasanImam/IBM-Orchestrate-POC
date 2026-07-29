@@ -1,0 +1,61 @@
+.toolset-tab-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.toolset-tab-section-header-spaced {
+  margin-top: 28px;
+}
+
+.toolset-tab-section-header h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.toolset-tab-subtitle {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.toolset-tab-add {
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.toolset-tab-error {
+  color: var(--color-danger);
+}
+
+.toolset-tab-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toolset-tab-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-subtle);
+}
+
+.toolset-tab-card-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.toolset-tab-card-type {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}

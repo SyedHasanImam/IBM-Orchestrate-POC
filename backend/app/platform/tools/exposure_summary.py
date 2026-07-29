@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from langchain_core.tools import tool
 
+from app.platform.instances.store import get_instance
 from app.platform.tools.fund_holdings import get_fund_holdings
 
 
@@ -57,3 +58,24 @@ def get_portfolio_exposure_summary() -> dict:
     """
     holdings = get_fund_holdings.invoke({})
     return compute_exposure_summary(holdings)
+
+
+def make_get_portfolio_exposure_summary_tool(instance_id: int):
+    """Build a get_portfolio_exposure_summary tool bound to one agent
+    instance's own holdings snapshot, mirroring
+    make_get_fund_holdings_tool's per-instance scoping."""
+
+    @tool
+    def get_portfolio_exposure_summary() -> dict:
+        """Compute the fund's current portfolio exposures needed for
+        compliance checks: sector totals, asset-class totals, the largest
+        single equity issuer, liquidity percentage, and equity allocation
+        percentage. These figures are computed deterministically from the
+        fund's holdings — use them exactly as given, never round, estimate,
+        or recompute them.
+        """
+        instance = get_instance(instance_id)
+        holdings = (instance and instance.get("holdings_snapshot")) or []
+        return compute_exposure_summary(holdings)
+
+    return get_portfolio_exposure_summary

@@ -7,10 +7,39 @@ export type CatalogEntry = {
   updated_at: string;
 };
 
+export type TemplateNode = {
+  name: string;
+  type: string;
+};
+
+export type TemplateDetail = {
+  name: string;
+  description: string;
+  version: string;
+  updated_at: string;
+  nodes: TemplateNode[];
+  tools: string[];
+};
+
+export type ExtractionWarning = {
+  row_reference: string;
+  field: string;
+  issue: string;
+};
+
 export type RunReportResponse = {
   thread_id: string;
+  workflow_name: string;
   report: string;
   message: string;
+  extraction_warnings: ExtractionWarning[];
+};
+
+export type HoldingsSnapshot = {
+  filename: string | null;
+  uploaded_at: string | null;
+  holdings_count: number;
+  warnings: ExtractionWarning[];
 };
 
 export type Decision = "approved" | "rejected";
@@ -26,6 +55,31 @@ export type ChatResponse = {
   routed_to: string | null;
 };
 
+export type AgentInstance = {
+  id: number;
+  template_name: string;
+  display_name: string;
+  description: string;
+  system_prompt_override: string | null;
+  status: "draft" | "deployed";
+  created_at: string;
+  updated_at: string;
+};
+
+export type UpdateAgentInstanceRequest = {
+  display_name?: string;
+  description?: string;
+  system_prompt_override?: string;
+};
+
+export type AgentDocument = {
+  id: number;
+  instance_id: number;
+  filename: string;
+  chunk_count: number;
+  created_at: string;
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -38,13 +92,25 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
+async function requestFormData<T>(path: string, formData: FormData, method = "POST"): Promise<T> {
+  // No Content-Type header here — the browser sets multipart/form-data with
+  // the correct boundary itself; setting it manually breaks the upload.
+  const resp = await fetch(`${BASE_URL}${path}`, { method, body: formData });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || `Request failed with status ${resp.status}`);
+  }
+  return resp.json() as Promise<T>;
+}
+
 export const api = {
   getCatalog: () => request<CatalogEntry[]>("/catalog"),
 
-  runReport: (workflowName: string) =>
-    request<RunReportResponse>(`/reports/${workflowName}/run`, {
-      method: "POST",
-    }),
+  getTemplate: (templateName: string) =>
+    request<TemplateDetail>(`/templates/${templateName}`),
+
+  runAgentReport: (agentId: number) =>
+    request<RunReportResponse>(`/agents/${agentId}/reports/run`, { method: "POST" }),
 
   submitDecision: (
     workflowName: string,
@@ -63,4 +129,57 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message, thread_id: threadId }),
     }),
+
+  listAgents: () => request<AgentInstance[]>("/agents"),
+
+  getAgent: (agentId: number) => request<AgentInstance>(`/agents/${agentId}`),
+
+  createAgent: (templateName: string, displayName: string, description: string) =>
+    request<AgentInstance>("/agents", {
+      method: "POST",
+      body: JSON.stringify({
+        template_name: templateName,
+        display_name: displayName,
+        description,
+      }),
+    }),
+
+  updateAgent: (agentId: number, fields: UpdateAgentInstanceRequest) =>
+    request<AgentInstance>(`/agents/${agentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+
+  deployAgent: (agentId: number) =>
+    request<AgentInstance>(`/agents/${agentId}/deploy`, { method: "POST" }),
+
+  deleteAgent: (agentId: number) =>
+    request<AgentInstance>(`/agents/${agentId}`, { method: "DELETE" }),
+
+  listDocuments: (agentId: number) => request<AgentDocument[]>(`/agents/${agentId}/documents`),
+
+  uploadDocument: (agentId: number, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return requestFormData<AgentDocument>(`/agents/${agentId}/documents`, formData);
+  },
+
+  deleteDocument: (agentId: number, documentId: number) =>
+    request<AgentDocument>(`/agents/${agentId}/documents/${documentId}`, {
+      method: "DELETE",
+    }),
+
+  chatWithAgent: (agentId: number, message: string, threadId: string | null) =>
+    request<ChatResponse>(`/agents/${agentId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message, thread_id: threadId }),
+    }),
+
+  getHoldings: (agentId: number) => request<HoldingsSnapshot>(`/agents/${agentId}/holdings`),
+
+  uploadHoldings: (agentId: number, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return requestFormData<HoldingsSnapshot>(`/agents/${agentId}/holdings`, formData);
+  },
 };

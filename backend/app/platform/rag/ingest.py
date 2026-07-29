@@ -5,6 +5,7 @@ from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 
 from app.core.config import LLM_TIMEOUT_SECONDS, PROJECT_ROOT, settings
+from app.platform.rag.chunking import chunk_text
 from app.platform.rag.loader import load_compliance_documents
 
 COLLECTION_NAME = "compliance_docs"
@@ -59,3 +60,30 @@ def ingest_compliance_documents() -> int:
     ids = [f"{doc.metadata['source']}::{doc.metadata['title']}" for doc in documents]
     vector_store.add_documents(documents, ids=ids)
     return len(documents)
+
+
+def get_instance_vector_store(instance_id: int) -> Chroma:
+    """Each agent instance gets its own Chroma collection — Knowledge is
+    instance-level, not shared, so one instance's uploaded documents never
+    leak into another's retrieval."""
+    return Chroma(
+        collection_name=f"agent_instance_{instance_id}",
+        embedding_function=_embeddings(),
+        client=_get_chroma_client(),
+    )
+
+
+def ingest_document_for_instance(instance_id: int, filename: str, text: str) -> list[str]:
+    """Chunk and embed one uploaded document into an instance's collection.
+    Returns the chunk ids that were written, so the caller can persist them
+    for later deletion."""
+    vector_store = get_instance_vector_store(instance_id)
+    documents = chunk_text(filename, text)
+    ids = [f"{filename}::{doc.metadata['title']}" for doc in documents]
+    vector_store.add_documents(documents, ids=ids)
+    return ids
+
+
+def delete_document_from_instance(instance_id: int, chunk_ids: list[str]) -> None:
+    vector_store = get_instance_vector_store(instance_id)
+    vector_store.delete(ids=chunk_ids)

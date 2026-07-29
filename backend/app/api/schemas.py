@@ -11,10 +11,39 @@ class CatalogEntry(BaseModel):
     updated_at: datetime
 
 
+class TemplateNodeSummary(BaseModel):
+    name: str
+    type: str
+
+
+class TemplateDetail(BaseModel):
+    name: str
+    description: str
+    version: str
+    updated_at: datetime
+    nodes: list[TemplateNodeSummary]
+    tools: list[str]
+
+
+class ExtractionWarningOut(BaseModel):
+    row_reference: str
+    field: str
+    issue: str
+
+
 class RunReportResponse(BaseModel):
     thread_id: str
+    workflow_name: str
     report: str
     message: str
+    extraction_warnings: list[ExtractionWarningOut] = []
+
+
+class HoldingsSnapshot(BaseModel):
+    filename: str | None = None
+    uploaded_at: datetime | None = None
+    holdings_count: int = 0
+    warnings: list[ExtractionWarningOut] = []
 
 
 class DecisionRequest(BaseModel):
@@ -37,3 +66,34 @@ class ChatResponse(BaseModel):
     thread_id: str
     message: str
     routed_to: str | None = None
+
+
+class AgentInstance(BaseModel):
+    id: int
+    template_name: str
+    display_name: str
+    description: str
+    system_prompt_override: str | None = None
+    status: Literal["draft", "deployed"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateAgentInstanceRequest(BaseModel):
+    template_name: str
+    display_name: str
+    description: str = ""
+
+
+class UpdateAgentInstanceRequest(BaseModel):
+    display_name: str | None = None
+    description: str | None = None
+    system_prompt_override: str | None = None
+
+
+class AgentDocument(BaseModel):
+    id: int
+    instance_id: int
+    filename: str
+    chunk_count: int
+    created_at: datetime

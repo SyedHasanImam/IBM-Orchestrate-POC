@@ -64,7 +64,9 @@ export function ChatPage() {
             )}
           </div>
         ))}
-        {loading && <div className="chat-bubble chat-bubble-assistant chat-loading">Thinking…</div>}
+        {loading && (
+          <div className="chat-bubble chat-bubble-assistant chat-loading">Thinking…</div>
+        )}
       </div>
 
       {error && <div className="chat-error">{error}</div>}

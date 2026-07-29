@@ -1,26 +1,10 @@
-import re
-from pathlib import Path
-
 from langchain_core.documents import Document
 
 from app.core.config import DATA_DIR
+from app.platform.rag.chunking import chunk_text
 
 COMPLIANCE_DOCS_DIR = DATA_DIR / "mock" / "compliance_docs"
 SOURCE_FILES = ["investment_mandate.md", "secp_regulatory_excerpts.md"]
-
-SECTION_PATTERN = re.compile(r"^### (.+)$", re.MULTILINE)
-
-
-def _load_sections(path: Path) -> list[Document]:
-    text = path.read_text(encoding="utf-8")
-    parts = SECTION_PATTERN.split(text)
-    return [
-        Document(
-            page_content=f"{heading}\n\n{body.strip()}",
-            metadata={"source": path.name, "title": heading},
-        )
-        for heading, body in zip(parts[1::2], parts[2::2])
-    ]
 
 
 def load_compliance_documents() -> list[Document]:
@@ -29,5 +13,6 @@ def load_compliance_documents() -> list[Document]:
     source section is already short and self-contained."""
     documents = []
     for filename in SOURCE_FILES:
-        documents.extend(_load_sections(COMPLIANCE_DOCS_DIR / filename))
+        path = COMPLIANCE_DOCS_DIR / filename
+        documents.extend(chunk_text(filename, path.read_text(encoding="utf-8")))
     return documents

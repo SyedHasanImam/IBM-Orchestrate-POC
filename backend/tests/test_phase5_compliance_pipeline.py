@@ -5,7 +5,8 @@ from app.platform.rag.ingest import ingest_compliance_documents
 from app.platform.runtime.checkpointer import postgres_checkpointer
 from app.platform.runtime.factory import build_workflow_from_config
 from app.platform.runtime.loader import load_workflow_config
-from app.platform.tools.exposure_summary import get_portfolio_exposure_summary
+from app.platform.tools.exposure_summary import compute_exposure_summary
+from app.platform.tools.fund_holdings import get_fund_holdings
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -25,8 +26,8 @@ def pipeline_result():
 
 def test_exposure_summary_matches_known_ground_truth():
     # Deterministic computation, independent of any LLM call — verified
-    # directly against the tool the compliance-checking agent calls.
-    summary = get_portfolio_exposure_summary.invoke({})
+    # directly against the same holdings the pipeline is fed.
+    summary = compute_exposure_summary(get_fund_holdings.invoke({}))
     assert summary["largest_single_issuer"]["security_id"] == "PK0080101018"  # OGDC
     assert summary["largest_single_issuer"]["weight_pct"] == pytest.approx(11.81)
     assert summary["sector_totals"]["Oil & Gas Exploration Companies"] == pytest.approx(

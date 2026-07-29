@@ -2,7 +2,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -14,15 +14,42 @@ from app.agents.trustee_compliance_reporting import (
     WORKFLOW_YAML_PATH as TRUSTEE_COMPLIANCE_WORKFLOW_YAML_PATH,
 )
 from app.api.schemas import (
+    AgentDocument,
+    AgentInstance,
     CatalogEntry,
     ChatRequest,
     ChatResponse,
+    CreateAgentInstanceRequest,
     DecisionRequest,
     DecisionResponse,
+    ExtractionWarningOut,
+    HoldingsSnapshot,
     RunReportResponse,
+    TemplateDetail,
+    TemplateNodeSummary,
+    UpdateAgentInstanceRequest,
 )
 from app.core.config import DB_CONNECT_TIMEOUT_SECONDS, settings
+from app.core.messages import extract_text
 from app.core.observability import get_langfuse_handler
+from app.platform.extraction.extract import extract_holdings
+from app.platform.instances import documents as instance_documents
+from app.platform.instances.schema import ensure_instances_schema
+from app.platform.instances.store import (
+    create_instance,
+    delete_instance,
+    deploy_instance,
+    get_instance,
+    list_instances,
+    set_holdings,
+    update_instance,
+)
+from app.platform.rag.ingest import (
+    delete_document_from_instance,
+    get_instance_vector_store,
+    ingest_document_for_instance,
+)
+from app.platform.runtime.agent_chat import build_agent_preview_chat
 from app.platform.runtime.factory import build_workflow_from_config
 from app.platform.runtime.loader import (
     list_registered_workflows,
@@ -53,11 +80,20 @@ async def lifespan(app: FastAPI):
         min_size=1,
         max_size=5,
         open=False,
+        # Neon (our free-tier cloud Postgres) silently closes connections
+        # that sit idle for a while. Without this, a request can be handed
+        # one of those already-dead connections and crash with a raw
+        # "server closed the connection unexpectedly" error. This makes the
+        # pool ping a connection before handing it out and transparently
+        # swap in a fresh one if it's dead, instead of surfacing the crash.
+        check=ConnectionPool.check_connection,
     )
     pool.open()
     checkpointer = PostgresSaver(pool)
     checkpointer.setup()
     app.state.checkpointer = checkpointer
+
+    ensure_instances_schema()
 
     app.state.workflow_configs = {}
     for yaml_path in WORKFLOW_YAML_PATHS:
@@ -86,28 +122,6 @@ def _get_workflow_config(workflow_name: str):
     if config is None:
         raise HTTPException(status_code=404, detail=f"Unknown workflow: {workflow_name}")
     return config
-
-
-@app.post("/reports/{workflow_name}/run", response_model=RunReportResponse)
-def run_report(workflow_name: str) -> RunReportResponse:
-    config = _get_workflow_config(workflow_name)
-    thread_id = f"{workflow_name}-{uuid.uuid4()}"
-    pipeline = build_workflow_from_config(config, app.state.checkpointer)
-    run_config = {"configurable": {"thread_id": thread_id}}
-
-    result = pipeline.invoke({}, config=run_config)
-    if "__interrupt__" not in result:
-        raise HTTPException(
-            status_code=500,
-            detail="Pipeline did not pause for approval as expected.",
-        )
-
-    interrupt_payload = result["__interrupt__"][0].value
-    return RunReportResponse(
-        thread_id=thread_id,
-        report=interrupt_payload["report"],
-        message=interrupt_payload["message"],
-    )
 
 
 @app.post(
@@ -142,6 +156,234 @@ def submit_decision(
 @app.get("/catalog", response_model=list[CatalogEntry])
 def list_catalog() -> list[CatalogEntry]:
     return [CatalogEntry(**row) for row in list_registered_workflows()]
+
+
+@app.get("/templates/{template_name}", response_model=TemplateDetail)
+def get_template(template_name: str) -> TemplateDetail:
+    config = _get_workflow_config(template_name)  # 404s if unknown
+    registry_row = next(
+        row for row in list_registered_workflows() if row["name"] == template_name
+    )
+    llm_agent_nodes = [node for node in config.nodes if node.type == "llm_agent"]
+
+    tools: list[str] = []
+    for node in llm_agent_nodes:
+        for tool_name in node.tools:
+            if tool_name not in tools:
+                tools.append(tool_name)
+
+    return TemplateDetail(
+        name=config.name,
+        description=config.description,
+        version=registry_row["version"],
+        updated_at=registry_row["updated_at"],
+        nodes=[TemplateNodeSummary(name=node.name, type=node.type) for node in llm_agent_nodes],
+        tools=tools,
+    )
+
+
+@app.post("/agents", response_model=AgentInstance)
+def create_agent(body: CreateAgentInstanceRequest) -> AgentInstance:
+    _get_workflow_config(body.template_name)  # 404s if not a real template
+    return AgentInstance(**create_instance(**body.model_dump()))
+
+
+@app.get("/agents", response_model=list[AgentInstance])
+def get_agents() -> list[AgentInstance]:
+    return [AgentInstance(**row) for row in list_instances()]
+
+
+@app.get("/agents/{agent_id}", response_model=AgentInstance)
+def get_agent(agent_id: int) -> AgentInstance:
+    row = get_instance(agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+    return AgentInstance(**row)
+
+
+@app.patch("/agents/{agent_id}", response_model=AgentInstance)
+def patch_agent(agent_id: int, body: UpdateAgentInstanceRequest) -> AgentInstance:
+    fields = body.model_dump(exclude_unset=True)
+    row = update_instance(agent_id, **fields)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+    return AgentInstance(**row)
+
+
+@app.post("/agents/{agent_id}/deploy", response_model=AgentInstance)
+def deploy_agent(agent_id: int) -> AgentInstance:
+    row = deploy_instance(agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+    return AgentInstance(**row)
+
+
+@app.delete("/agents/{agent_id}", response_model=AgentInstance)
+def delete_agent(agent_id: int) -> AgentInstance:
+    row = delete_instance(agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+    get_instance_vector_store(agent_id).delete_collection()
+    return AgentInstance(**row)
+
+
+@app.post("/agents/{agent_id}/reports/run", response_model=RunReportResponse)
+def run_agent_report(agent_id: int) -> RunReportResponse:
+    agent = get_instance(agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+    if agent["status"] != "deployed":
+        raise HTTPException(
+            status_code=400,
+            detail="Agent must be deployed before it can generate reports.",
+        )
+    if not agent.get("holdings_snapshot"):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload this agent's holdings (Knowledge tab) before generating a report.",
+        )
+
+    workflow_name = agent["template_name"]
+    config = _get_workflow_config(workflow_name)
+    thread_id = f"agent-{agent_id}-{uuid.uuid4()}"
+    pipeline = build_workflow_from_config(config, app.state.checkpointer)
+    run_config = {
+        "configurable": {"thread_id": thread_id, "agent_instance_id": agent_id}
+    }
+
+    result = pipeline.invoke({}, config=run_config)
+    if "__interrupt__" not in result:
+        raise HTTPException(
+            status_code=500,
+            detail="Pipeline did not pause for approval as expected.",
+        )
+
+    interrupt_payload = result["__interrupt__"][0].value
+    warnings = agent.get("holdings_warnings") or []
+    return RunReportResponse(
+        thread_id=thread_id,
+        workflow_name=workflow_name,
+        report=interrupt_payload["report"],
+        message=interrupt_payload["message"],
+        extraction_warnings=[ExtractionWarningOut(**w) for w in warnings],
+    )
+
+
+def _get_agent_or_404(agent_id: int) -> None:
+    if get_instance(agent_id) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+
+SUPPORTED_HOLDINGS_EXTENSIONS = (".xlsx", ".pdf")
+
+
+@app.post("/agents/{agent_id}/holdings", response_model=HoldingsSnapshot)
+async def upload_agent_holdings(agent_id: int, file: UploadFile) -> HoldingsSnapshot:
+    _get_agent_or_404(agent_id)
+    filename = file.filename or "holdings"
+    if not filename.lower().endswith(SUPPORTED_HOLDINGS_EXTENSIONS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type — holdings must be one of {SUPPORTED_HOLDINGS_EXTENSIONS}.",
+        )
+    raw = await file.read()
+    try:
+        extraction = extract_holdings(filename, raw)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    holdings = [h.model_dump() for h in extraction.holdings]
+    warnings = [w.model_dump() for w in extraction.warnings]
+    row = set_holdings(agent_id, holdings=holdings, warnings=warnings, filename=filename)
+
+    return HoldingsSnapshot(
+        filename=row["holdings_filename"],
+        uploaded_at=row["holdings_uploaded_at"],
+        holdings_count=len(holdings),
+        warnings=[ExtractionWarningOut(**w) for w in warnings],
+    )
+
+
+@app.get("/agents/{agent_id}/holdings", response_model=HoldingsSnapshot)
+def get_agent_holdings(agent_id: int) -> HoldingsSnapshot:
+    row = get_instance(agent_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+    holdings = row.get("holdings_snapshot") or []
+    warnings = row.get("holdings_warnings") or []
+    return HoldingsSnapshot(
+        filename=row.get("holdings_filename"),
+        uploaded_at=row.get("holdings_uploaded_at"),
+        holdings_count=len(holdings),
+        warnings=[ExtractionWarningOut(**w) for w in warnings],
+    )
+
+
+SUPPORTED_DOCUMENT_EXTENSIONS = (".md", ".txt")
+
+
+@app.post("/agents/{agent_id}/documents", response_model=AgentDocument)
+async def upload_agent_document(agent_id: int, file: UploadFile) -> AgentDocument:
+    _get_agent_or_404(agent_id)
+    filename = file.filename or "untitled.txt"
+    if not filename.lower().endswith(SUPPORTED_DOCUMENT_EXTENSIONS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type — knowledge documents must be one of {SUPPORTED_DOCUMENT_EXTENSIONS}.",
+        )
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 text.")
+
+    chunk_ids = ingest_document_for_instance(agent_id, filename, text)
+    row = instance_documents.create_document(
+        instance_id=agent_id, filename=filename, chunk_ids=chunk_ids
+    )
+    return AgentDocument(**row)
+
+
+@app.get("/agents/{agent_id}/documents", response_model=list[AgentDocument])
+def get_agent_documents(agent_id: int) -> list[AgentDocument]:
+    _get_agent_or_404(agent_id)
+    return [AgentDocument(**row) for row in instance_documents.list_documents(agent_id)]
+
+
+@app.delete("/agents/{agent_id}/documents/{document_id}", response_model=AgentDocument)
+def delete_agent_document(agent_id: int, document_id: int) -> AgentDocument:
+    row = instance_documents.get_document(document_id)
+    if row is None or row["instance_id"] != agent_id:
+        raise HTTPException(status_code=404, detail=f"Unknown document: {document_id}")
+    deleted = instance_documents.delete_document(document_id)
+    delete_document_from_instance(agent_id, deleted["chunk_ids"])
+    return AgentDocument(**deleted)
+
+
+@app.post("/agents/{agent_id}/chat", response_model=ChatResponse)
+def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
+    instance = get_instance(agent_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+    thread_id = body.thread_id or f"agent-{agent_id}-preview-{uuid.uuid4()}"
+    agent = build_agent_preview_chat(instance, app.state.checkpointer)
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "run_name": "agent-preview-chat",
+        "callbacks": [get_langfuse_handler()],
+    }
+
+    result = agent.invoke(
+        {"messages": [HumanMessage(content=body.message)]}, config=config
+    )
+
+    return ChatResponse(
+        thread_id=thread_id,
+        message=extract_text(result["messages"][-1]),
+        routed_to=None,
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)

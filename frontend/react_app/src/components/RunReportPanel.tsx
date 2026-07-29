@@ -1,13 +1,15 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { api, type Decision, type DecisionResponse } from "../api/client";
-import "./ReportsPage.css";
+import {
+  api,
+  type Decision,
+  type DecisionResponse,
+  type RunReportResponse,
+} from "../api/client";
+import "./RunReportPanel.css";
 
-const WORKFLOW_NAME = "trustee_compliance_reporting";
-
-export function ReportsPage() {
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [report, setReport] = useState<string | null>(null);
+export function RunReportPanel({ agentId }: { agentId: number }) {
+  const [runResult, setRunResult] = useState<RunReportResponse | null>(null);
   const [finalized, setFinalized] = useState<DecisionResponse | null>(null);
   const [actor, setActor] = useState("");
   const [comment, setComment] = useState("");
@@ -19,9 +21,8 @@ export function ReportsPage() {
     setRunning(true);
     setError(null);
     try {
-      const data = await api.runReport(WORKFLOW_NAME);
-      setThreadId(data.thread_id);
-      setReport(data.report);
+      const data = await api.runAgentReport(agentId);
+      setRunResult(data);
       setFinalized(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to run report.");
@@ -31,13 +32,13 @@ export function ReportsPage() {
   }
 
   async function handleDecision(decision: Decision) {
-    if (!threadId) return;
+    if (!runResult) return;
     setDeciding(true);
     setError(null);
     try {
       const data = await api.submitDecision(
-        WORKFLOW_NAME,
-        threadId,
+        runResult.workflow_name,
+        runResult.thread_id,
         decision,
         actor,
         comment || null,
@@ -51,8 +52,7 @@ export function ReportsPage() {
   }
 
   function handleReset() {
-    setThreadId(null);
-    setReport(null);
+    setRunResult(null);
     setFinalized(null);
     setActor("");
     setComment("");
@@ -60,24 +60,49 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="reports-page">
-      <h1>Monthly Trustee Compliance Reporting</h1>
+    <div className="run-report-panel">
+      {!runResult && (
+        <div className="run-report-setup">
+          <p className="run-report-setup-subtitle">
+            Runs against this agent's currently attached holdings and
+            regulatory Knowledge — update either from the Edit configuration
+            page first if they need to change.
+          </p>
+          <button type="button" onClick={handleRun} disabled={running}>
+            {running ? "Running the compliance pipeline…" : "Run Report"}
+          </button>
+        </div>
+      )}
 
-      <button type="button" onClick={handleRun} disabled={running || threadId !== null}>
-        {running ? "Running the compliance pipeline…" : "Run Trustee Compliance Report"}
-      </button>
+      {error && <div className="run-report-error">{error}</div>}
 
-      {error && <div className="reports-error">{error}</div>}
-
-      {report && (
+      {runResult && (
         <>
+          {runResult.extraction_warnings.length > 0 && (
+            <div className="run-report-warnings">
+              <h2>Extraction warnings</h2>
+              <p className="run-report-warnings-subtitle">
+                These rows from the uploaded document couldn't be read reliably,
+                so they were left out of the report below rather than guessed —
+                check the original document.
+              </p>
+              <ul>
+                {runResult.extraction_warnings.map((w, i) => (
+                  <li key={i}>
+                    <strong>{w.row_reference}</strong> — {w.field}: {w.issue}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <h2>Draft Report</h2>
-          <div className="reports-draft">
-            <ReactMarkdown>{report}</ReactMarkdown>
+          <div className="run-report-draft">
+            <ReactMarkdown>{runResult.report}</ReactMarkdown>
           </div>
 
           {!finalized && (
-            <div className="reports-decision">
+            <div className="run-report-decision">
               <h2>Reviewer Decision</h2>
               <label>
                 Your name
@@ -91,10 +116,10 @@ export function ReportsPage() {
                 Comment (optional)
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} />
               </label>
-              <div className="reports-decision-buttons">
+              <div className="run-report-decision-buttons">
                 <button
                   type="button"
-                  className="reports-approve"
+                  className="run-report-approve"
                   disabled={!actor.trim() || deciding}
                   onClick={() => handleDecision("approved")}
                 >
@@ -102,7 +127,7 @@ export function ReportsPage() {
                 </button>
                 <button
                   type="button"
-                  className="reports-reject"
+                  className="run-report-reject"
                   disabled={!actor.trim() || deciding}
                   onClick={() => handleDecision("rejected")}
                 >
@@ -116,8 +141,8 @@ export function ReportsPage() {
             <div
               className={
                 finalized.event_type === "report_approved"
-                  ? "reports-finalized reports-finalized-approved"
-                  : "reports-finalized reports-finalized-rejected"
+                  ? "run-report-finalized run-report-finalized-approved"
+                  : "run-report-finalized run-report-finalized-rejected"
               }
             >
               {finalized.event_type === "report_approved"

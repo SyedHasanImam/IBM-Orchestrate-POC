@@ -12,20 +12,45 @@ from app.core.config import LLM_MAX_RETRIES, LLM_TIMEOUT_SECONDS, settings
 from app.core.messages import extract_text
 from app.core.observability import get_langfuse_handler
 from app.platform.audit.log import record_report_decision
+from app.platform.rag.retrieval import make_search_compliance_kb_tool
 from app.platform.schema.workflow_config import (
     ApprovalGateNodeConfig,
     FinalizeNodeConfig,
     LlmAgentNodeConfig,
     WorkflowConfig,
 )
+from app.platform.tools.exposure_summary import make_get_portfolio_exposure_summary_tool
+from app.platform.tools.fund_holdings import make_get_fund_holdings_tool
 from app.platform.tools.registry import TOOL_REGISTRY
+
+INSTANCE_SCOPED_TOOL_FACTORIES = {
+    "search_compliance_kb": make_search_compliance_kb_tool,
+    "get_fund_holdings": make_get_fund_holdings_tool,
+    "get_portfolio_exposure_summary": make_get_portfolio_exposure_summary_tool,
+}
 
 
 def _invoke_config(run_name: str) -> dict:
     return {"run_name": run_name, "callbacks": [get_langfuse_handler()]}
 
 
-def build_agent_from_config(node: LlmAgentNodeConfig, name: str | None = None):
+def _resolve_tool(tool_name: str, instance_id: int | None):
+    """Several tools need to operate on one specific agent instance's own
+    data — its Knowledge documents, its uploaded holdings snapshot — rather
+    than a shared global default. When we know which instance this run
+    belongs to, bind the tool to that instance instead of the
+    TOOL_REGISTRY's shared fallback. Falls back to the shared default when
+    there's no instance context (e.g. the chat supervisor's collaborators,
+    which aren't scoped to one instance)."""
+    factory = INSTANCE_SCOPED_TOOL_FACTORIES.get(tool_name)
+    if factory is not None and instance_id is not None:
+        return factory(instance_id)
+    return TOOL_REGISTRY[tool_name]
+
+
+def build_agent_from_config(
+    node: LlmAgentNodeConfig, name: str | None = None, instance_id: int | None = None
+):
     """Build a standalone LangChain agent from an LlmAgentNodeConfig. Used
     both to build a pipeline node (below) and, unwrapped, as a supervisor
     collaborator (Phase 11) — one place that turns a node config into a
@@ -36,7 +61,7 @@ def build_agent_from_config(node: LlmAgentNodeConfig, name: str | None = None):
     change (backend/.env) rather than a YAML edit.
     """
     model_name = getattr(settings, node.model)
-    tools = [TOOL_REGISTRY[tool_name] for tool_name in node.tools]
+    tools = [_resolve_tool(tool_name, instance_id) for tool_name in node.tools]
     model = init_chat_model(
         model_name, timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES
     )
@@ -50,8 +75,9 @@ def build_agent_from_config(node: LlmAgentNodeConfig, name: str | None = None):
 
 
 def _build_llm_agent_node(workflow_name: str, node: LlmAgentNodeConfig):
-    def node_fn(state: dict) -> dict:
-        agent = build_agent_from_config(node)
+    def node_fn(state: dict, config: RunnableConfig) -> dict:
+        instance_id = config["configurable"].get("agent_instance_id")
+        agent = build_agent_from_config(node, instance_id=instance_id)
         content = node.message_template.format(**state)
         result = agent.invoke(
             {"messages": [HumanMessage(content=content)]},

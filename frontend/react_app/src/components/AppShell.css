@@ -9,9 +9,33 @@
   height: 48px;
   display: flex;
   align-items: center;
+  gap: 16px;
   padding: 0 16px;
   background: var(--color-topbar);
   color: var(--color-topbar-text);
+}
+
+.app-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.app-hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--color-topbar-text);
+  border-radius: 1px;
+}
+
+.app-hamburger:hover span {
+  background: var(--color-primary);
 }
 
 .app-topbar-title {
@@ -26,48 +50,49 @@
   min-height: 0;
 }
 
-.app-sidebar {
-  flex: 0 0 220px;
-  background: var(--color-sidebar);
-  border-right: 1px solid var(--color-sidebar-border);
-  padding: 12px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-nav-item {
-  display: block;
-  padding: 10px 20px;
-  font-size: 14px;
-  color: var(--color-text);
-  text-decoration: none;
-  border-left: 3px solid transparent;
-}
-
-.app-nav-item:hover:not(.app-nav-item-disabled) {
-  background: var(--color-sidebar-active);
-}
-
-.app-nav-item-active {
-  background: var(--color-sidebar-active);
-  border-left-color: var(--color-sidebar-active-border);
-  font-weight: 600;
-}
-
-.app-nav-item-disabled {
-  color: #a8a8a8;
-  cursor: not-allowed;
-}
-
-.app-sidebar-divider {
-  height: 1px;
-  background: var(--color-sidebar-border);
-  margin: 12px 20px;
-}
-
 .app-content {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 32px;
   background: var(--color-bg);
+}
+
+.app-nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+}
+
+.app-nav-overlay-panel {
+  width: 240px;
+  height: 100%;
+  background: var(--color-topbar);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-overlay-item {
+  display: block;
+  padding: 12px 20px;
+  font-size: 14px;
+  color: var(--color-topbar-text);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+
+.app-overlay-item:hover:not(.app-overlay-item-disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-overlay-item-active {
+  border-left-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.app-overlay-item-disabled {
+  color: #6f6f6f;
+  cursor: not-allowed;
 }
