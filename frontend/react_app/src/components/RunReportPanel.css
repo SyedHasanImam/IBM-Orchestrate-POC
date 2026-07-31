@@ -8,35 +8,31 @@
   margin-bottom: 16px;
 }
 
-.run-report-setup > button {
-  padding: 10px 20px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-bg);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.run-report-setup > button:hover:not(:disabled) {
-  background: var(--color-bg-subtle);
-}
-
 .run-report-error {
   color: var(--color-danger);
   margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-soft-border);
+  font-size: 13px;
 }
 
 .run-report-warnings {
   border: 1px solid var(--color-warning-text);
   background: var(--color-warning-bg);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px 20px;
   margin-bottom: 20px;
 }
 
 .run-report-warnings h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 0;
   font-size: 15px;
+  color: var(--color-warning-text);
 }
 
 .run-report-warnings-subtitle {
@@ -51,9 +47,13 @@
   font-size: 13px;
 }
 
+.run-report-draft-heading {
+  font-size: 16px;
+}
+
 .run-report-draft {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px 24px;
   background: var(--color-bg-subtle);
   font-size: 14px;
@@ -68,9 +68,14 @@
   margin-top: 24px;
 }
 
+.run-report-decision h2 {
+  font-size: 16px;
+}
+
 .run-report-decision label {
   display: block;
   font-size: 13px;
+  font-weight: 600;
   color: var(--color-text-muted);
   margin-bottom: 12px;
 }
@@ -79,11 +84,19 @@
 .run-report-decision textarea {
   display: block;
   width: 100%;
-  margin-top: 4px;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  margin-top: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text);
+}
+
+.run-report-decision input:focus,
+.run-report-decision textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 .run-report-decision textarea {
@@ -96,33 +109,10 @@
   gap: 12px;
 }
 
-.run-report-decision-buttons button {
-  padding: 10px 20px;
-  border-radius: 6px;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.run-report-approve {
-  background: var(--color-primary);
-  color: white;
-}
-
-.run-report-approve:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-}
-
-.run-report-reject {
-  background: white;
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger) !important;
-}
-
 .run-report-finalized {
   margin-top: 24px;
   padding: 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
 }
 
@@ -136,12 +126,6 @@
   color: var(--color-warning-text);
 }
 
-.run-report-finalized button {
+.run-report-finalized div {
   margin-top: 12px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: white;
-  font-size: 13px;
-  font-weight: 600;
 }

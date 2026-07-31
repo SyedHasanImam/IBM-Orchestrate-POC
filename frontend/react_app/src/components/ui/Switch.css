@@ -1,0 +1,36 @@
+.ui-switch {
+  all: unset;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.ui-switch[data-state="checked"] {
+  background: var(--color-primary);
+}
+
+.ui-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ui-switch-thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+  transform: translateX(2px);
+  transition: transform var(--transition-fast);
+  will-change: transform;
+}
+
+.ui-switch-thumb[data-state="checked"] {
+  transform: translateX(18px);
+}

@@ -6,42 +6,55 @@
 
 .app-topbar {
   flex: 0 0 auto;
-  height: 48px;
+  height: 52px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 0 16px;
   background: var(--color-topbar);
   color: var(--color-topbar-text);
+  border-bottom: 1px solid var(--color-topbar-border);
 }
 
 .app-hamburger {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--color-topbar-text);
+  transition: background var(--transition-fast);
 }
 
-.app-hamburger span {
-  display: block;
-  height: 2px;
-  background: var(--color-topbar-text);
-  border-radius: 1px;
+.app-hamburger:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.app-hamburger:hover span {
-  background: var(--color-primary);
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--color-primary), #8a3ffc);
+  color: white;
 }
 
 .app-topbar-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
 }
 
 .app-body {
@@ -53,46 +66,7 @@
 .app-content {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 32px;
+  padding: 32px 40px;
   background: var(--color-bg);
-}
-
-.app-nav-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 100;
-  display: flex;
-}
-
-.app-nav-overlay-panel {
-  width: 240px;
-  height: 100%;
-  background: var(--color-topbar);
-  padding: 16px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-overlay-item {
-  display: block;
-  padding: 12px 20px;
-  font-size: 14px;
-  color: var(--color-topbar-text);
-  text-decoration: none;
-  border-left: 3px solid transparent;
-}
-
-.app-overlay-item:hover:not(.app-overlay-item-disabled) {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.app-overlay-item-active {
-  border-left-color: var(--color-primary);
-  font-weight: 600;
-}
-
-.app-overlay-item-disabled {
-  color: #6f6f6f;
-  cursor: not-allowed;
+  min-width: 0;
 }

@@ -1,40 +1,32 @@
-import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import {
-  api,
-  type Decision,
-  type DecisionResponse,
-  type RunReportResponse,
-} from "../api/client";
+import { Check, TriangleAlert, X } from "lucide-react";
+import { toast } from "sonner";
+import { api, type Decision } from "../api/client";
+import { resetReportRun, updateReportRun, useReportRun } from "../state/reportRuns";
+import { Button } from "./ui/Button";
+import { Markdown } from "./ui/Markdown";
 import "./RunReportPanel.css";
 
 export function RunReportPanel({ agentId }: { agentId: number }) {
-  const [runResult, setRunResult] = useState<RunReportResponse | null>(null);
-  const [finalized, setFinalized] = useState<DecisionResponse | null>(null);
-  const [actor, setActor] = useState("");
-  const [comment, setComment] = useState("");
-  const [running, setRunning] = useState(false);
-  const [deciding, setDeciding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { runResult, finalized, actor, comment, running, deciding, error } =
+    useReportRun(agentId);
 
   async function handleRun() {
-    setRunning(true);
-    setError(null);
+    updateReportRun(agentId, { running: true, error: null });
     try {
       const data = await api.runAgentReport(agentId);
-      setRunResult(data);
-      setFinalized(null);
+      updateReportRun(agentId, { runResult: data, finalized: null });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to run report.");
+      updateReportRun(agentId, {
+        error: err instanceof Error ? err.message : "Failed to run report.",
+      });
     } finally {
-      setRunning(false);
+      updateReportRun(agentId, { running: false });
     }
   }
 
   async function handleDecision(decision: Decision) {
     if (!runResult) return;
-    setDeciding(true);
-    setError(null);
+    updateReportRun(agentId, { deciding: true, error: null });
     try {
       const data = await api.submitDecision(
         runResult.workflow_name,
@@ -43,20 +35,19 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
         actor,
         comment || null,
       );
-      setFinalized(data);
+      updateReportRun(agentId, { finalized: data });
+      toast.success(decision === "approved" ? "Report approved." : "Report rejected.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit decision.");
+      updateReportRun(agentId, {
+        error: err instanceof Error ? err.message : "Failed to submit decision.",
+      });
     } finally {
-      setDeciding(false);
+      updateReportRun(agentId, { deciding: false });
     }
   }
 
   function handleReset() {
-    setRunResult(null);
-    setFinalized(null);
-    setActor("");
-    setComment("");
-    setError(null);
+    resetReportRun(agentId);
   }
 
   return (
@@ -64,13 +55,13 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
       {!runResult && (
         <div className="run-report-setup">
           <p className="run-report-setup-subtitle">
-            Runs against this agent's currently attached holdings and
-            regulatory Knowledge — update either from the Edit configuration
-            page first if they need to change.
+            Runs this agent's report pipeline against its configured data
+            sources and Knowledge — update either from the Edit
+            configuration page first if they need to change.
           </p>
-          <button type="button" onClick={handleRun} disabled={running}>
-            {running ? "Running the compliance pipeline…" : "Run Report"}
-          </button>
+          <Button variant="primary" onClick={handleRun} disabled={running}>
+            {running ? "Running the pipeline…" : "Run Report"}
+          </Button>
         </div>
       )}
 
@@ -80,7 +71,10 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
         <>
           {runResult.extraction_warnings.length > 0 && (
             <div className="run-report-warnings">
-              <h2>Extraction warnings</h2>
+              <h2>
+                <TriangleAlert size={16} />
+                Extraction warnings
+              </h2>
               <p className="run-report-warnings-subtitle">
                 These rows from the uploaded document couldn't be read reliably,
                 so they were left out of the report below rather than guessed —
@@ -96,9 +90,9 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
             </div>
           )}
 
-          <h2>Draft Report</h2>
+          <h2 className="run-report-draft-heading">Draft Report</h2>
           <div className="run-report-draft">
-            <ReactMarkdown>{runResult.report}</ReactMarkdown>
+            <Markdown>{runResult.report}</Markdown>
           </div>
 
           {!finalized && (
@@ -109,30 +103,33 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
                 <input
                   type="text"
                   value={actor}
-                  onChange={(e) => setActor(e.target.value)}
+                  onChange={(e) => updateReportRun(agentId, { actor: e.target.value })}
                 />
               </label>
               <label>
                 Comment (optional)
-                <textarea value={comment} onChange={(e) => setComment(e.target.value)} />
+                <textarea
+                  value={comment}
+                  onChange={(e) => updateReportRun(agentId, { comment: e.target.value })}
+                />
               </label>
               <div className="run-report-decision-buttons">
-                <button
-                  type="button"
-                  className="run-report-approve"
+                <Button
+                  variant="primary"
                   disabled={!actor.trim() || deciding}
                   onClick={() => handleDecision("approved")}
                 >
+                  <Check size={15} />
                   Approve
-                </button>
-                <button
-                  type="button"
-                  className="run-report-reject"
+                </Button>
+                <Button
+                  variant="danger"
                   disabled={!actor.trim() || deciding}
                   onClick={() => handleDecision("rejected")}
                 >
+                  <X size={15} />
                   Reject
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -149,9 +146,9 @@ export function RunReportPanel({ agentId }: { agentId: number }) {
                 ? `Report approved and finalized. Audit log ID: ${finalized.audit_log_id}`
                 : `Report rejected. Audit log ID: ${finalized.audit_log_id}`}
               <div>
-                <button type="button" onClick={handleReset}>
+                <Button variant="secondary" size="sm" onClick={handleReset}>
                   Start a new report run
-                </button>
+                </Button>
               </div>
             </div>
           )}

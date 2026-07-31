@@ -44,12 +44,18 @@ def get_instance(instance_id: int) -> dict | None:
             return cur.fetchone()
 
 
-UPDATABLE_FIELDS = {"display_name", "description", "system_prompt_override"}
+UPDATABLE_FIELDS = {
+    "display_name",
+    "description",
+    "system_prompt_override",
+    "included_in_chat",
+}
 
 
 def update_instance(instance_id: int, **fields) -> dict | None:
-    """Patch whichever of display_name/description/system_prompt_override
-    were actually provided. Returns None if the instance doesn't exist."""
+    """Patch whichever of display_name/description/system_prompt_override/
+    included_in_chat were actually provided. Returns None if the instance
+    doesn't exist."""
     if not fields:
         return get_instance(instance_id)
     unknown = fields.keys() - UPDATABLE_FIELDS
@@ -92,6 +98,52 @@ def set_holdings(
                 RETURNING *;
                 """,
                 (json.dumps(holdings), json.dumps(warnings), filename, instance_id),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
+RECONCILIATION_DOCUMENT_TYPES = (
+    "ledger",
+    "custodian_statement",
+    "trade_blotter",
+    "corporate_actions",
+)
+
+
+def set_reconciliation_input(
+    instance_id: int, *, doc_type: str, rows: list[dict], warnings: list[dict], filename: str
+) -> dict | None:
+    """Replace one of this instance's reconciliation data slots (ledger,
+    custodian_statement, trade_blotter, or corporate_actions) — each
+    attached independently, like Knowledge, and reused by every
+    reconciliation run until that slot is replaced again. jsonb_set only
+    touches this one key, so uploading one document never clobbers the
+    others already attached."""
+    if doc_type not in RECONCILIATION_DOCUMENT_TYPES:
+        raise ValueError(f"Unknown reconciliation document type: {doc_type}")
+    with _connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE agent_instances
+                SET reconciliation_inputs = jsonb_set(
+                        reconciliation_inputs,
+                        %s,
+                        jsonb_build_object(
+                            'rows', %s::jsonb,
+                            'warnings', %s::jsonb,
+                            'filename', %s::text,
+                            'uploaded_at', now()
+                        ),
+                        true
+                    ),
+                    updated_at = now()
+                WHERE id = %s
+                RETURNING *;
+                """,
+                ([doc_type], json.dumps(rows), json.dumps(warnings), filename, instance_id),
             )
             row = cur.fetchone()
         conn.commit()

@@ -1,0 +1,90 @@
+name: stock_reconciliation
+description: >
+  Stock/position reconciliation pipeline — compares the fund's internal
+  ledger against the custodian's statement, classifies any breaks using the
+  trade blotter and corporate actions calendar, drafts a report, and gates it
+  behind human approval before the decision is written to the audit log.
+version: "0.1.0"
+
+state_keys:
+  - position_summary
+  - reconciliation_findings
+  - report
+  - approval_decision
+  - audit_log_id
+
+nodes:
+  - name: aggregation
+    type: llm_agent
+    model: aggregation_model
+    system_prompt: >
+      You are the Data Aggregation Agent for a mutual fund's stock/position
+      reconciliation workflow. Retrieve the fund's current internal ledger
+      using get_fund_ledger and the custodian's statement using
+      get_custodian_statement, and report back an accurate summary of what
+      you find. Always state the exact number of positions in each source
+      when asked, and name specific securities when asked about them.
+    tools:
+      - get_fund_ledger
+      - get_custodian_statement
+    message_template: >
+      Retrieve and summarize the fund's internal ledger positions and the
+      custodian's statement of holdings.
+    output_key: position_summary
+
+  - name: break_classification
+    type: llm_agent
+    model: compliance_model
+    system_prompt: >
+      You are the Break Classification Agent for a mutual fund's stock/
+      position reconciliation workflow. Use the match_positions tool to get
+      the exact matched-position count and every break between the fund's
+      ledger and the custodian's statement. For each break, state the
+      security, the ledger quantity, the custodian quantity, the exact
+      quantity difference, and its status:
+      - "explained" via a pending settlement — cite the trade_id, side,
+      quantity, and settlement_date from the explanation detail
+      - "explained" via a corporate action — cite the action_type and
+      details from the explanation detail
+      - "unexplained" — flag it clearly as needing investigation, with no
+      speculation about the cause
+      Use the exact numbers given — never round, estimate, or recompute
+      them, and never invent a cause for an unexplained break.
+    tools:
+      - match_positions
+    message_template: >
+      Reconcile the fund's current ledger against the custodian's statement
+      and classify any breaks found.
+    output_key: reconciliation_findings
+
+  - name: reporting
+    type: llm_agent
+    model: reporting_model
+    system_prompt: >
+      You are the Reporting Agent for a mutual fund's stock/position
+      reconciliation workflow. You will be given this period's
+      reconciliation findings. Compile them into a clear, well-structured
+      reconciliation report with: a short executive summary (how many
+      positions matched, how many breaks were found and how many of those
+      are unexplained), a findings section listing each break with its
+      security, ledger/custodian quantities, exact difference, and
+      explained/unexplained status with citation, and a closing note that
+      this report is pending trustee review. Do not invent any figures or
+      explanations beyond what you were given.
+    tools: []
+    message_template: |
+      Here are this period's reconciliation findings:
+
+      {reconciliation_findings}
+    output_key: report
+
+  - name: approval_gate
+    type: approval_gate
+    report_key: report
+    message: >
+      Please review and approve or reject this period's reconciliation
+      report.
+
+  - name: finalize
+    type: finalize
+    report_key: report

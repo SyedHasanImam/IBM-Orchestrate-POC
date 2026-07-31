@@ -29,6 +29,10 @@ class ExtractionWarningOut(BaseModel):
     row_reference: str
     field: str
     issue: str
+    # Which uploaded document this warning came from — only set for
+    # reconciliation's multi-document warnings, since holdings only ever has
+    # one source document.
+    source: str | None = None
 
 
 class RunReportResponse(BaseModel):
@@ -43,6 +47,14 @@ class HoldingsSnapshot(BaseModel):
     filename: str | None = None
     uploaded_at: datetime | None = None
     holdings_count: int = 0
+    warnings: list[ExtractionWarningOut] = []
+
+
+class ReconciliationDataOut(BaseModel):
+    doc_type: str
+    filename: str | None = None
+    uploaded_at: datetime | None = None
+    row_count: int = 0
     warnings: list[ExtractionWarningOut] = []
 
 
@@ -75,6 +87,7 @@ class AgentInstance(BaseModel):
     description: str
     system_prompt_override: str | None = None
     status: Literal["draft", "deployed"]
+    included_in_chat: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -89,6 +102,7 @@ class UpdateAgentInstanceRequest(BaseModel):
     display_name: str | None = None
     description: str | None = None
     system_prompt_override: str | None = None
+    included_in_chat: bool | None = None
 
 
 class AgentDocument(BaseModel):

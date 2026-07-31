@@ -1,4 +1,5 @@
 import { Navigate, Route, BrowserRouter, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
 import { AppShell } from "./components/AppShell";
 import { AgentEditorPage } from "./pages/AgentEditorPage";
 import { AgentPage } from "./pages/AgentPage";
@@ -9,6 +10,16 @@ import { TemplateDetailPage } from "./pages/TemplateDetailPage";
 function App() {
   return (
     <BrowserRouter>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            fontFamily: "var(--font-sans)",
+            fontSize: "14px",
+            borderRadius: "var(--radius-md)",
+          },
+        }}
+      />
       <AppShell>
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />

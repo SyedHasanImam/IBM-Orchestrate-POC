@@ -21,12 +21,24 @@ from app.platform.schema.workflow_config import (
 )
 from app.platform.tools.exposure_summary import make_get_portfolio_exposure_summary_tool
 from app.platform.tools.fund_holdings import make_get_fund_holdings_tool
+from app.platform.tools.reconciliation import (
+    make_get_corporate_actions_tool,
+    make_get_custodian_statement_tool,
+    make_get_fund_ledger_tool,
+    make_get_trade_blotter_tool,
+    make_match_positions_tool,
+)
 from app.platform.tools.registry import TOOL_REGISTRY
 
 INSTANCE_SCOPED_TOOL_FACTORIES = {
     "search_compliance_kb": make_search_compliance_kb_tool,
     "get_fund_holdings": make_get_fund_holdings_tool,
     "get_portfolio_exposure_summary": make_get_portfolio_exposure_summary_tool,
+    "get_fund_ledger": make_get_fund_ledger_tool,
+    "get_custodian_statement": make_get_custodian_statement_tool,
+    "get_trade_blotter": make_get_trade_blotter_tool,
+    "get_corporate_actions": make_get_corporate_actions_tool,
+    "match_positions": make_match_positions_tool,
 }
 
 
@@ -34,14 +46,15 @@ def _invoke_config(run_name: str) -> dict:
     return {"run_name": run_name, "callbacks": [get_langfuse_handler()]}
 
 
-def _resolve_tool(tool_name: str, instance_id: int | None):
+def resolve_tool(tool_name: str, instance_id: int | None):
     """Several tools need to operate on one specific agent instance's own
-    data — its Knowledge documents, its uploaded holdings snapshot — rather
-    than a shared global default. When we know which instance this run
-    belongs to, bind the tool to that instance instead of the
+    data — its Knowledge documents, its uploaded holdings/reconciliation
+    data — rather than a shared global default. When we know which instance
+    this run belongs to, bind the tool to that instance instead of the
     TOOL_REGISTRY's shared fallback. Falls back to the shared default when
     there's no instance context (e.g. the chat supervisor's collaborators,
-    which aren't scoped to one instance)."""
+    which aren't scoped to one instance). Also used directly by
+    agent_chat.py to resolve a per-instance chat's own tool list."""
     factory = INSTANCE_SCOPED_TOOL_FACTORIES.get(tool_name)
     if factory is not None and instance_id is not None:
         return factory(instance_id)
@@ -61,7 +74,7 @@ def build_agent_from_config(
     change (backend/.env) rather than a YAML edit.
     """
     model_name = getattr(settings, node.model)
-    tools = [_resolve_tool(tool_name, instance_id) for tool_name in node.tools]
+    tools = [resolve_tool(tool_name, instance_id) for tool_name in node.tools]
     model = init_chat_model(
         model_name, timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES
     )

@@ -37,11 +37,30 @@ ALTER TABLE agent_instances
     ADD COLUMN IF NOT EXISTS holdings_uploaded_at TIMESTAMPTZ;
 """
 
+# Reconciliation needs several independent data slots (ledger, custodian
+# statement, trade blotter, corporate actions) rather than the single
+# holdings snapshot compliance uses — one JSONB column keyed by doc type
+# keeps that generic instead of adding four more columns per document.
+AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL = """
+ALTER TABLE agent_instances
+    ADD COLUMN IF NOT EXISTS reconciliation_inputs JSONB NOT NULL DEFAULT '{}'::jsonb;
+"""
+
+# Whether this deployed instance is currently one of the collaborators the
+# homepage chat's routing supervisor can hand questions off to — toggled by
+# the user from the chat's "Manage agents" picker, not tied to deployment
+# itself (a deployed agent can still be left out of the chat).
+AGENT_INSTANCES_CHAT_COLUMN_DDL = """
+ALTER TABLE agent_instances
+    ADD COLUMN IF NOT EXISTS included_in_chat BOOLEAN NOT NULL DEFAULT false;
+"""
+
 
 def ensure_instances_schema() -> None:
     """Create the agent_instances/agent_instance_documents tables (and add
-    the holdings-snapshot columns) if they don't already exist yet.
-    Idempotent — safe to call on every startup."""
+    the holdings-snapshot, reconciliation-inputs, and chat-inclusion
+    columns) if they don't already exist yet. Idempotent — safe to call on
+    every startup."""
     with psycopg.connect(
         settings.database_url, connect_timeout=DB_CONNECT_TIMEOUT_SECONDS
     ) as conn:
@@ -49,4 +68,6 @@ def ensure_instances_schema() -> None:
             cur.execute(AGENT_INSTANCES_DDL)
             cur.execute(AGENT_INSTANCE_DOCUMENTS_DDL)
             cur.execute(AGENT_INSTANCES_HOLDINGS_COLUMNS_DDL)
+            cur.execute(AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL)
+            cur.execute(AGENT_INSTANCES_CHAT_COLUMN_DDL)
         conn.commit()

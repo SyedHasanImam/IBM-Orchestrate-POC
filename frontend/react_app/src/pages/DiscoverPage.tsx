@@ -1,10 +1,15 @@
+import * as Tabs from "@radix-ui/react-tabs";
+import { Search, SquarePen, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { api, type AgentInstance, type CatalogEntry } from "../api/client";
 import { notifyAgentsChanged } from "../state/agentEvents";
+import { AgentIcon } from "../components/ui/AgentIcon";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import "./DiscoverPage.css";
-
-type Tab = "catalog" | "mine";
 
 function matchesSearch(search: string, ...fields: string[]): boolean {
   if (!search.trim()) return true;
@@ -14,13 +19,13 @@ function matchesSearch(search: string, ...fields: string[]): boolean {
 
 export function DiscoverPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "mine">("catalog");
   const [search, setSearch] = useState("");
   const [templates, setTemplates] = useState<CatalogEntry[]>([]);
   const [agents, setAgents] = useState<AgentInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AgentInstance | null>(null);
 
   useEffect(() => {
     Promise.all([api.getCatalog(), api.listAgents()])
@@ -32,20 +37,12 @@ export function DiscoverPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleDelete(agent: AgentInstance, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!window.confirm(`Delete "${agent.display_name}"? This can't be undone.`)) return;
-    setDeletingId(agent.id);
-    setError(null);
-    try {
-      await api.deleteAgent(agent.id);
-      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
-      notifyAgentsChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete agent.");
-    } finally {
-      setDeletingId(null);
-    }
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    await api.deleteAgent(pendingDelete.id);
+    setAgents((prev) => prev.filter((a) => a.id !== pendingDelete.id));
+    notifyAgentsChanged();
+    toast.success(`"${pendingDelete.display_name}" deleted.`);
   }
 
   const filteredTemplates = useMemo(
@@ -64,90 +61,118 @@ export function DiscoverPage() {
         Explore pre-built agents and customize your own from them.
       </p>
 
-      <input
-        type="text"
-        className="discover-search"
-        placeholder="Search the catalog"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
-      <div className="discover-tabs">
-        <button
-          type="button"
-          className={activeTab === "catalog" ? "discover-tab discover-tab-active" : "discover-tab"}
-          onClick={() => setActiveTab("catalog")}
-        >
-          Complete catalog
-        </button>
-        <button
-          type="button"
-          className={activeTab === "mine" ? "discover-tab discover-tab-active" : "discover-tab"}
-          onClick={() => setActiveTab("mine")}
-        >
-          My agents and tools
-        </button>
+      <div className="discover-search-row">
+        <Search size={16} className="discover-search-icon" />
+        <input
+          type="text"
+          className="discover-search"
+          placeholder="Search the catalog"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      {loading && <p>Loading…</p>}
-      {error && <p className="discover-error">{error}</p>}
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as "catalog" | "mine")}
+        className="discover-tabs-root"
+      >
+        <Tabs.List className="discover-tabs">
+          <Tabs.Trigger value="catalog" className="discover-tab">
+            Complete catalog
+          </Tabs.Trigger>
+          <Tabs.Trigger value="mine" className="discover-tab">
+            My agents and tools
+          </Tabs.Trigger>
+        </Tabs.List>
 
-      {!loading && !error && activeTab === "catalog" && (
-        <div className="discover-grid">
-          {filteredTemplates.length === 0 && <p>No templates match your search.</p>}
-          {filteredTemplates.map((entry) => (
-            <div
-              key={entry.name}
-              className="discover-card discover-card-clickable"
-              onClick={() => navigate(`/templates/${entry.name}`)}
-            >
-              <div className="discover-card-header">
-                <span className="discover-card-name">{entry.name}</span>
-                <span className="discover-card-version">v{entry.version}</span>
-              </div>
-              <p className="discover-card-description">{entry.description}</p>
-              <p className="discover-card-updated">
-                Updated {new Date(entry.updated_at).toLocaleString()}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
+        {loading && <p className="discover-loading">Loading…</p>}
+        {error && <p className="discover-error">{error}</p>}
 
-      {!loading && !error && activeTab === "mine" && (
-        <div className="discover-grid">
-          {filteredAgents.length === 0 && <p>No agents match your search.</p>}
-          {filteredAgents.map((agent) => (
-            <div key={agent.id} className="discover-card">
-              <div className="discover-card-header">
-                <span className="discover-card-name">{agent.display_name}</span>
-                <span className="discover-card-version">from {agent.template_name}</span>
-              </div>
-              <p className="discover-card-description">{agent.description}</p>
-              <p className="discover-card-updated">
-                Updated {new Date(agent.updated_at).toLocaleString()}
-              </p>
-              <div className="discover-card-actions">
-                <button
-                  type="button"
-                  className="discover-card-action"
-                  onClick={() => navigate(`/agents/${agent.id}/edit`)}
+        <Tabs.Content value="catalog">
+          {!loading && !error && (
+            <div className="discover-grid">
+              {filteredTemplates.length === 0 && (
+                <p className="discover-empty">No templates match your search.</p>
+              )}
+              {filteredTemplates.map((entry) => (
+                <div
+                  key={entry.name}
+                  className="discover-card discover-card-clickable"
+                  onClick={() => navigate(`/templates/${entry.name}`)}
                 >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="discover-card-action discover-card-action-delete"
-                  onClick={(e) => handleDelete(agent, e)}
-                  disabled={deletingId === agent.id}
-                >
-                  {deletingId === agent.id ? "Deleting…" : "Delete"}
-                </button>
-              </div>
+                  <div className="discover-card-header">
+                    <AgentIcon seed={entry.name} />
+                    <div className="discover-card-heading">
+                      <span className="discover-card-name">{entry.name}</span>
+                      <Badge variant="neutral">v{entry.version}</Badge>
+                    </div>
+                  </div>
+                  <p className="discover-card-description">{entry.description}</p>
+                  <p className="discover-card-updated">
+                    Updated {new Date(entry.updated_at).toLocaleString()}
+                  </p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </Tabs.Content>
+
+        <Tabs.Content value="mine">
+          {!loading && !error && (
+            <div className="discover-grid">
+              {filteredAgents.length === 0 && (
+                <p className="discover-empty">No agents match your search.</p>
+              )}
+              {filteredAgents.map((agent) => (
+                <div key={agent.id} className="discover-card">
+                  <div className="discover-card-header">
+                    <AgentIcon seed={agent.template_name + agent.id} />
+                    <div className="discover-card-heading">
+                      <span className="discover-card-name">{agent.display_name}</span>
+                      <Badge variant="primary">from {agent.template_name}</Badge>
+                    </div>
+                  </div>
+                  <p className="discover-card-description">{agent.description}</p>
+                  <p className="discover-card-updated">
+                    Updated {new Date(agent.updated_at).toLocaleString()}
+                  </p>
+                  <div className="discover-card-actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/agents/${agent.id}/edit`)}
+                    >
+                      <SquarePen size={14} />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => setPendingDelete(agent)}
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Tabs.Content>
+      </Tabs.Root>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={`Delete "${pendingDelete?.display_name}"?`}
+        description="This can't be undone. The agent, its Knowledge, and its attached data will be permanently removed."
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

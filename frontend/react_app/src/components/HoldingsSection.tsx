@@ -1,5 +1,8 @@
+import { TriangleAlert, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { api, type HoldingsSnapshot } from "../api/client";
+import { Button } from "./ui/Button";
 import "./HoldingsSection.css";
 
 export function HoldingsSection({ agentId }: { agentId: number }) {
@@ -22,6 +25,7 @@ export function HoldingsSection({ agentId }: { agentId: number }) {
     try {
       const data = await api.uploadHoldings(agentId, file);
       setSnapshot(data);
+      toast.success(`Holdings updated — ${data.holdings_count} positions.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload holdings.");
     } finally {
@@ -55,6 +59,7 @@ export function HoldingsSection({ agentId }: { agentId: number }) {
       {snapshot && snapshot.warnings.length > 0 && (
         <div className="holdings-section-warnings">
           <p className="holdings-section-warnings-title">
+            <TriangleAlert size={14} />
             These rows couldn't be read reliably and were left out:
           </p>
           <ul>
@@ -74,18 +79,14 @@ export function HoldingsSection({ agentId }: { agentId: number }) {
         onChange={handleFileSelected}
         style={{ display: "none" }}
       />
-      <button
-        type="button"
-        className="holdings-section-upload"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-      >
+      <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+        <Upload size={15} />
         {uploading
           ? "Uploading…"
           : snapshot?.filename
             ? "Replace holdings file"
             : "Upload holdings file (.xlsx, .pdf)"}
-      </button>
+      </Button>
     </div>
   );
 }

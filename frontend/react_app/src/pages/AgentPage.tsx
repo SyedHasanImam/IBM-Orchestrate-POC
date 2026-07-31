@@ -1,8 +1,10 @@
+import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, type AgentInstance } from "../api/client";
 import { AgentPreviewChat } from "../components/AgentPreviewChat";
 import { RunReportPanel } from "../components/RunReportPanel";
+import { AgentIcon } from "../components/ui/AgentIcon";
 import "./AgentPage.css";
 
 export function AgentPage() {
@@ -32,11 +34,15 @@ export function AgentPage() {
   return (
     <div className="agent-page">
       <div className="agent-page-header">
-        <div>
-          <h1>{agent.display_name}</h1>
-          <p className="agent-page-subtitle">{agent.description}</p>
+        <div className="agent-page-heading">
+          <AgentIcon seed={agent.template_name + agent.id} size={40} />
+          <div>
+            <h1>{agent.display_name}</h1>
+            <p className="agent-page-subtitle">{agent.description}</p>
+          </div>
         </div>
         <Link to={`/agents/${agent.id}/edit`} className="agent-page-edit-link">
+          <Pencil size={14} />
           Edit configuration
         </Link>
       </div>

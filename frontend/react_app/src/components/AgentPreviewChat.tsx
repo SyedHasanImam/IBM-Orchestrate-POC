@@ -1,33 +1,38 @@
-import { useState } from "react";
+import { ArrowUp } from "lucide-react";
 import { api } from "../api/client";
+import { getAgentChat, updateAgentChat, useAgentChat } from "../state/agentChatHistory";
+import { Markdown } from "./ui/Markdown";
 import "./AgentPreviewChat.css";
 
-type Message = { role: "user" | "assistant"; content: string };
-
 export function AgentPreviewChat({ agentId }: { agentId: number }) {
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { threadId, messages, input, loading, error } = useAgentChat(agentId);
 
   async function handleSend() {
     const question = input.trim();
     if (!question) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
-    setInput("");
-    setLoading(true);
-    setError(null);
+    updateAgentChat(agentId, {
+      messages: [...getAgentChat(agentId).messages, { role: "user", content: question }],
+      input: "",
+      loading: true,
+      error: null,
+    });
 
     try {
       const data = await api.chatWithAgent(agentId, question, threadId);
-      setThreadId(data.thread_id);
-      setMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
+      updateAgentChat(agentId, {
+        threadId: data.thread_id,
+        messages: [
+          ...getAgentChat(agentId).messages,
+          { role: "assistant", content: data.message },
+        ],
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      updateAgentChat(agentId, {
+        error: err instanceof Error ? err.message : "Something went wrong.",
+      });
     } finally {
-      setLoading(false);
+      updateAgentChat(agentId, { loading: false });
     }
   }
 
@@ -45,7 +50,7 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
             key={index}
             className={`preview-chat-bubble preview-chat-bubble-${message.role}`}
           >
-            {message.content}
+            {message.role === "assistant" ? <Markdown>{message.content}</Markdown> : message.content}
           </div>
         ))}
         {loading && (
@@ -62,14 +67,20 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
           type="text"
           value={input}
           placeholder="Ask this agent a question…"
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => updateAgentChat(agentId, { input: e.target.value })}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSend();
           }}
           disabled={loading}
         />
-        <button type="button" onClick={handleSend} disabled={loading || !input.trim()}>
-          Send
+        <button
+          type="button"
+          className="preview-chat-send"
+          onClick={handleSend}
+          disabled={loading || !input.trim()}
+          aria-label="Send"
+        >
+          <ArrowUp size={16} />
         </button>
       </div>
     </div>

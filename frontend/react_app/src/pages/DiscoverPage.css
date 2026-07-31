@@ -1,37 +1,69 @@
 .discover-page {
-  max-width: 960px;
+  max-width: 1040px;
+}
+
+.discover-page h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
 }
 
 .discover-subtitle {
   color: var(--color-text-muted);
   font-size: 14px;
-  margin-bottom: 24px;
+  margin: 0 0 24px;
 }
 
 .discover-error {
   color: var(--color-danger);
 }
 
+.discover-loading,
+.discover-empty {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.discover-search-row {
+  position: relative;
+  max-width: 420px;
+  margin-bottom: 24px;
+}
+
+.discover-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-faint);
+  pointer-events: none;
+}
+
 .discover-search {
   display: block;
   width: 100%;
-  max-width: 420px;
-  padding: 10px 14px;
-  margin-bottom: 20px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
   font-size: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.discover-search:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 .discover-tabs {
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .discover-tab {
-  padding: 10px 16px;
+  padding: 10px 4px;
+  margin-right: 20px;
   border: none;
   background: transparent;
   font-size: 14px;
@@ -39,28 +71,33 @@
   color: var(--color-text-muted);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  transition: color var(--transition-fast);
 }
 
 .discover-tab:hover {
   color: var(--color-text);
 }
 
-.discover-tab-active {
-  color: var(--color-text);
+.discover-tab[data-state="active"] {
+  color: var(--color-primary);
   border-bottom-color: var(--color-primary);
 }
 
 .discover-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 
 .discover-card {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: var(--radius-md);
+  padding: 18px;
   background: var(--color-bg);
+  transition:
+    box-shadow var(--transition),
+    border-color var(--transition),
+    transform var(--transition);
 }
 
 .discover-card-clickable {
@@ -68,64 +105,55 @@
 }
 
 .discover-card-clickable:hover {
-  border-color: var(--color-primary);
-  background: var(--color-bg-subtle);
+  border-color: var(--color-primary-soft-border);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .discover-card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.discover-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .discover-card-name {
   font-weight: 600;
   font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.discover-card-version {
-  font-size: 12px;
-  color: var(--color-text-muted);
+.discover-card-heading .ui-badge {
+  align-self: flex-start;
 }
 
 .discover-card-description {
-  font-size: 14px;
-  color: var(--color-text);
-  margin: 0 0 8px;
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0 0 10px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .discover-card-updated {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--color-text-faint);
   margin: 0 0 12px;
 }
 
 .discover-card-actions {
   display: flex;
   gap: 8px;
-}
-
-.discover-card-action {
-  padding: 8px 14px;
-  border: 1px solid var(--color-primary);
-  border-radius: 6px;
-  background: white;
-  color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.discover-card-action:hover:not(:disabled) {
-  background: var(--color-bg-subtle);
-}
-
-.discover-card-action-delete {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.discover-card-action-delete:hover:not(:disabled) {
-  background: var(--color-danger);
-  color: white;
 }

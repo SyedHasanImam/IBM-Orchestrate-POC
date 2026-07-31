@@ -25,6 +25,7 @@ export type ExtractionWarning = {
   row_reference: string;
   field: string;
   issue: string;
+  source?: string | null;
 };
 
 export type RunReportResponse = {
@@ -39,6 +40,20 @@ export type HoldingsSnapshot = {
   filename: string | null;
   uploaded_at: string | null;
   holdings_count: number;
+  warnings: ExtractionWarning[];
+};
+
+export type ReconciliationDocType =
+  | "ledger"
+  | "custodian_statement"
+  | "trade_blotter"
+  | "corporate_actions";
+
+export type ReconciliationDataOut = {
+  doc_type: ReconciliationDocType;
+  filename: string | null;
+  uploaded_at: string | null;
+  row_count: number;
   warnings: ExtractionWarning[];
 };
 
@@ -62,6 +77,7 @@ export type AgentInstance = {
   description: string;
   system_prompt_override: string | null;
   status: "draft" | "deployed";
+  included_in_chat: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -70,6 +86,7 @@ export type UpdateAgentInstanceRequest = {
   display_name?: string;
   description?: string;
   system_prompt_override?: string;
+  included_in_chat?: boolean;
 };
 
 export type AgentDocument = {
@@ -181,5 +198,17 @@ export const api = {
     const formData = new FormData();
     formData.append("file", file);
     return requestFormData<HoldingsSnapshot>(`/agents/${agentId}/holdings`, formData);
+  },
+
+  getReconciliationData: (agentId: number) =>
+    request<ReconciliationDataOut[]>(`/agents/${agentId}/reconciliation-data`),
+
+  uploadReconciliationData: (agentId: number, docType: ReconciliationDocType, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return requestFormData<ReconciliationDataOut>(
+      `/agents/${agentId}/reconciliation-data/${docType}`,
+      formData,
+    );
   },
 };

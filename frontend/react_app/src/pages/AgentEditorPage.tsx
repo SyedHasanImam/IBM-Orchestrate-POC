@@ -1,9 +1,15 @@
+import { Rocket, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import { api, type AgentInstance } from "../api/client";
 import { AgentPreviewChat } from "../components/AgentPreviewChat";
 import { KnowledgeTab } from "../components/KnowledgeTab";
 import { ToolsetTab } from "../components/ToolsetTab";
+import { AgentIcon } from "../components/ui/AgentIcon";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { notifyAgentsChanged } from "../state/agentEvents";
 import "./AgentEditorPage.css";
 
@@ -20,7 +26,7 @@ export function AgentEditorPage() {
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [deploying, setDeploying] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,6 +49,7 @@ export function AgentEditorPage() {
       });
       setAgent(updated);
       if (updated.status === "deployed") notifyAgentsChanged();
+      toast.success("Changes saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save.");
     } finally {
@@ -58,6 +65,7 @@ export function AgentEditorPage() {
       const updated = await api.updateAgent(agent.id, { display_name: displayName, description });
       await api.deployAgent(updated.id);
       notifyAgentsChanged();
+      toast.success(`"${displayName}" deployed.`);
       navigate(`/agents/${updated.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to deploy.");
@@ -67,17 +75,10 @@ export function AgentEditorPage() {
 
   async function handleDelete() {
     if (!agent) return;
-    if (!window.confirm(`Delete "${agent.display_name}"? This can't be undone.`)) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await api.deleteAgent(agent.id);
-      notifyAgentsChanged();
-      navigate("/discover");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete.");
-      setDeleting(false);
-    }
+    await api.deleteAgent(agent.id);
+    notifyAgentsChanged();
+    toast.success(`"${agent.display_name}" deleted.`);
+    navigate("/discover");
   }
 
   if (!agent) {
@@ -87,35 +88,31 @@ export function AgentEditorPage() {
   return (
     <div className="agent-editor-page">
       <div className="agent-editor-header">
-        <div>
-          <h1>{agent.display_name}</h1>
-          <p className="agent-editor-subtitle">
-            From template: {agent.template_name} ·{" "}
-            <span className={`agent-editor-status agent-editor-status-${agent.status}`}>
-              {agent.status}
-            </span>
-          </p>
+        <div className="agent-editor-heading">
+          <AgentIcon seed={agent.template_name + agent.id} size={40} />
+          <div>
+            <h1>{agent.display_name}</h1>
+            <p className="agent-editor-subtitle">
+              From template: {agent.template_name} ·{" "}
+              <Badge variant={agent.status === "deployed" ? "success" : "neutral"}>
+                {agent.status}
+              </Badge>
+            </p>
+          </div>
         </div>
         <div className="agent-editor-header-actions">
-          <button type="button" onClick={handleSave} disabled={saving}>
+          <Button variant="secondary" onClick={handleSave} disabled={saving}>
+            <Save size={15} />
             {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            className="agent-editor-deploy"
-            onClick={handleDeploy}
-            disabled={deploying}
-          >
+          </Button>
+          <Button variant="primary" onClick={handleDeploy} disabled={deploying}>
+            <Rocket size={15} />
             {deploying ? "Deploying…" : "Deploy"}
-          </button>
-          <button
-            type="button"
-            className="agent-editor-delete"
-            onClick={handleDelete}
-            disabled={deleting}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
+          </Button>
+          <Button variant="danger" onClick={() => setConfirmingDelete(true)}>
+            <Trash2 size={15} />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -161,7 +158,9 @@ export function AgentEditorPage() {
               </div>
             )}
 
-            {activeTab === "Knowledge" && <KnowledgeTab agentId={agent.id} />}
+            {activeTab === "Knowledge" && (
+              <KnowledgeTab agentId={agent.id} templateName={agent.template_name} />
+            )}
 
             {activeTab === "Toolset" && <ToolsetTab templateName={agent.template_name} />}
 
@@ -180,6 +179,16 @@ export function AgentEditorPage() {
           <AgentPreviewChat key={agent.id} agentId={agent.id} />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={`Delete "${agent.display_name}"?`}
+        description="This can't be undone. The agent, its Knowledge, and its attached data will be permanently removed."
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

@@ -1,5 +1,7 @@
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, type TemplateDetail } from "../api/client";
+import { Button } from "./ui/Button";
 import { formatSlug } from "../utils/format";
 import "./ToolsetTab.css";
 
@@ -44,9 +46,10 @@ export function ToolsetTab({ templateName }: { templateName: string }) {
                 Agents this one can delegate tasks to.
               </p>
             </div>
-            <button type="button" className="toolset-tab-add" disabled>
-              Add agent +
-            </button>
+            <Button variant="secondary" size="sm" disabled title="Coming in a later stage">
+              <Plus size={14} />
+              Add agent
+            </Button>
           </div>
           <div className="toolset-tab-cards">
             {template.nodes.map((node) => (
