@@ -85,7 +85,7 @@ class AgentInstance(BaseModel):
     template_name: str
     display_name: str
     description: str
-    system_prompt_override: str | None = None
+    instructions: str | None = None
     status: Literal["draft", "deployed"]
     included_in_chat: bool = False
     created_at: datetime
@@ -101,7 +101,7 @@ class CreateAgentInstanceRequest(BaseModel):
 class UpdateAgentInstanceRequest(BaseModel):
     display_name: str | None = None
     description: str | None = None
-    system_prompt_override: str | None = None
+    instructions: str | None = None
     included_in_chat: bool | None = None
 
 

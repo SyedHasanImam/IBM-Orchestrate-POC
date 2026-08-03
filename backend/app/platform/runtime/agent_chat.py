@@ -29,10 +29,17 @@ def build_instance_agent(
     both the per-agent chat (below) and the homepage chat supervisor's
     dynamic collaborators, so there's exactly one place that turns an
     instance into a real agent."""
-    system_prompt = instance.get("system_prompt_override") or DEFAULT_SYSTEM_PROMPT_TEMPLATE.format(
+    system_prompt = DEFAULT_SYSTEM_PROMPT_TEMPLATE.format(
         display_name=instance["display_name"],
         description=instance["description"] or "No description provided.",
     )
+    # Instructions (the Behavior tab) is layered on top of the identity
+    # block rather than replacing it — mirrors watsonx Orchestrate, where
+    # Description and Instructions are separate, both-always-present layers,
+    # not one overriding the other.
+    instructions = instance.get("instructions")
+    if instructions:
+        system_prompt = f"{system_prompt}\n\n{instructions}"
     model = init_chat_model(
         settings.compliance_model, timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES
     )

@@ -75,7 +75,7 @@ export type AgentInstance = {
   template_name: string;
   display_name: string;
   description: string;
-  system_prompt_override: string | null;
+  instructions: string | null;
   status: "draft" | "deployed";
   included_in_chat: boolean;
   created_at: string;
@@ -85,7 +85,7 @@ export type AgentInstance = {
 export type UpdateAgentInstanceRequest = {
   display_name?: string;
   description?: string;
-  system_prompt_override?: string;
+  instructions?: string;
   included_in_chat?: boolean;
 };
 

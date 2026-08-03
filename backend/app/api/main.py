@@ -150,7 +150,7 @@ async def lifespan(app: FastAPI):
     pool.close()
 
 
-app = FastAPI(title="Fund Management Agent Platform API", lifespan=lifespan)
+app = FastAPI(title="Orchestrate POC API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

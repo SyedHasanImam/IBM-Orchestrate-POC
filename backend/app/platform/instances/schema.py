@@ -8,11 +8,30 @@ CREATE TABLE IF NOT EXISTS agent_instances (
     template_name TEXT NOT NULL,
     display_name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    system_prompt_override TEXT,
+    instructions TEXT,
     status TEXT NOT NULL DEFAULT 'draft',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+"""
+
+# Older databases created this column back when it was an all-or-nothing
+# system prompt replacement named system_prompt_override; it's now composed
+# additively with the auto-generated identity/description block, so it was
+# renamed to instructions to match. Guarded so it only runs once.
+AGENT_INSTANCES_RENAME_INSTRUCTIONS_DDL = """
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'agent_instances' AND column_name = 'system_prompt_override'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'agent_instances' AND column_name = 'instructions'
+    ) THEN
+        ALTER TABLE agent_instances RENAME COLUMN system_prompt_override TO instructions;
+    END IF;
+END $$;
 """
 
 AGENT_INSTANCE_DOCUMENTS_DDL = """
@@ -66,6 +85,7 @@ def ensure_instances_schema() -> None:
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(AGENT_INSTANCES_DDL)
+            cur.execute(AGENT_INSTANCES_RENAME_INSTRUCTIONS_DDL)
             cur.execute(AGENT_INSTANCE_DOCUMENTS_DDL)
             cur.execute(AGENT_INSTANCES_HOLDINGS_COLUMNS_DDL)
             cur.execute(AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL)

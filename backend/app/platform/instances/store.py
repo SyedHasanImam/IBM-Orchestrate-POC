@@ -47,13 +47,13 @@ def get_instance(instance_id: int) -> dict | None:
 UPDATABLE_FIELDS = {
     "display_name",
     "description",
-    "system_prompt_override",
+    "instructions",
     "included_in_chat",
 }
 
 
 def update_instance(instance_id: int, **fields) -> dict | None:
-    """Patch whichever of display_name/description/system_prompt_override/
+    """Patch whichever of display_name/description/instructions/
     included_in_chat were actually provided. Returns None if the instance
     doesn't exist."""
     if not fields:

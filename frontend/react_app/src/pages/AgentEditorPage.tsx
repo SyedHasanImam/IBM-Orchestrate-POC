@@ -16,6 +16,12 @@ import "./AgentEditorPage.css";
 const TABS = ["Profile", "Knowledge", "Toolset", "Behavior", "Channels"] as const;
 type Tab = (typeof TABS)[number];
 
+const INSTRUCTIONS_PLACEHOLDER = `**Tool Usage Guidelines**
+1. Before calling a tool, make sure you have everything you need — ask the user for any required parameter you don't already have rather than assuming a value.
+2. Don't call the same tool again with the same parameters if you already have that result.
+3. If a question is unrelated to this agent's job, say so honestly instead of guessing.
+4. If a tool returns more than one data point, show the results as a table.`;
+
 export function AgentEditorPage() {
   const { agentId } = useParams();
   const navigate = useNavigate();
@@ -24,6 +30,7 @@ export function AgentEditorPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Profile");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
+  const [instructions, setInstructions] = useState("");
   const [saving, setSaving] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -35,6 +42,7 @@ export function AgentEditorPage() {
       setAgent(data);
       setDisplayName(data.display_name);
       setDescription(data.description);
+      setInstructions(data.instructions ?? "");
     });
   }, [agentId]);
 
@@ -46,6 +54,7 @@ export function AgentEditorPage() {
       const updated = await api.updateAgent(agent.id, {
         display_name: displayName,
         description,
+        instructions,
       });
       setAgent(updated);
       if (updated.status === "deployed") notifyAgentsChanged();
@@ -62,7 +71,11 @@ export function AgentEditorPage() {
     setDeploying(true);
     setError(null);
     try {
-      const updated = await api.updateAgent(agent.id, { display_name: displayName, description });
+      const updated = await api.updateAgent(agent.id, {
+        display_name: displayName,
+        description,
+        instructions,
+      });
       await api.deployAgent(updated.id);
       notifyAgentsChanged();
       toast.success(`"${displayName}" deployed.`);
@@ -164,13 +177,30 @@ export function AgentEditorPage() {
 
             {activeTab === "Toolset" && <ToolsetTab templateName={agent.template_name} />}
 
-            {activeTab !== "Profile" &&
-              activeTab !== "Knowledge" &&
-              activeTab !== "Toolset" && (
-                <p className="agent-editor-placeholder">
-                  {activeTab} configuration is coming in a later stage.
+            {activeTab === "Behavior" && (
+              <div>
+                <p className="agent-editor-hint">
+                  Instructions shape how {agent.display_name} behaves and uses its tools —
+                  layered on top of its Description above, never replacing it. Leave this
+                  blank to use sensible defaults.
                 </p>
-              )}
+                <label>
+                  Instructions
+                  <textarea
+                    className="agent-editor-behavior-textarea"
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder={INSTRUCTIONS_PLACEHOLDER}
+                  />
+                </label>
+              </div>
+            )}
+
+            {activeTab === "Channels" && (
+              <p className="agent-editor-placeholder">
+                {activeTab} configuration is coming in a later stage.
+              </p>
+            )}
           </div>
         </div>
 
