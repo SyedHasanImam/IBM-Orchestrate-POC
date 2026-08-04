@@ -49,13 +49,14 @@ UPDATABLE_FIELDS = {
     "description",
     "instructions",
     "included_in_chat",
+    "extra_tools",
 }
 
 
 def update_instance(instance_id: int, **fields) -> dict | None:
     """Patch whichever of display_name/description/instructions/
-    included_in_chat were actually provided. Returns None if the instance
-    doesn't exist."""
+    included_in_chat/extra_tools were actually provided. Returns None if the
+    instance doesn't exist."""
     if not fields:
         return get_instance(instance_id)
     unknown = fields.keys() - UPDATABLE_FIELDS

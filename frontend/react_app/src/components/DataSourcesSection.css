@@ -1,71 +1,77 @@
-.reconciliation-data-section {
+.data-sources-section {
   margin-bottom: 28px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--color-border);
 }
 
-.reconciliation-data-section h3 {
+.data-sources-section h3 {
   margin: 0 0 4px;
   font-size: 15px;
 }
 
-.reconciliation-data-section-subtitle {
+.data-sources-section-subtitle {
   color: var(--color-text-muted);
   font-size: 13px;
   margin-top: 0;
   margin-bottom: 12px;
 }
 
-.reconciliation-data-section-error {
+.data-sources-section-error {
   color: var(--color-danger);
 }
 
-.reconciliation-data-slot {
+.data-sources-slot {
   padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   margin-bottom: 12px;
 }
 
-.reconciliation-data-slot-header {
+.data-sources-slot-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
-.reconciliation-data-slot-label {
+.data-sources-slot-label {
   font-size: 14px;
   font-weight: 600;
 }
 
-.reconciliation-data-slot-empty {
+.data-sources-slot-description {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.data-sources-slot-empty {
   color: var(--color-text-muted);
   font-size: 13px;
   margin: 0 0 8px;
 }
 
-.reconciliation-data-slot-status {
+.data-sources-slot-status {
   background: var(--color-bg-subtle);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin-bottom: 8px;
 }
 
-.reconciliation-data-slot-filename {
+.data-sources-slot-filename {
   display: block;
   font-size: 13px;
   font-weight: 600;
 }
 
-.reconciliation-data-slot-meta {
+.data-sources-slot-meta {
   display: block;
   font-size: 12px;
   color: var(--color-text-muted);
   margin-top: 2px;
 }
 
-.reconciliation-data-slot-warnings {
+.data-sources-slot-warnings {
   border: 1px solid var(--color-warning-text);
   background: var(--color-warning-bg);
   border-radius: var(--radius-sm);
@@ -74,7 +80,7 @@
   font-size: 12px;
 }
 
-.reconciliation-data-slot-warnings-title {
+.data-sources-slot-warnings-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -83,7 +89,7 @@
   font-weight: 600;
 }
 
-.reconciliation-data-slot-warnings ul {
+.data-sources-slot-warnings ul {
   margin: 0;
   padding-left: 18px;
 }

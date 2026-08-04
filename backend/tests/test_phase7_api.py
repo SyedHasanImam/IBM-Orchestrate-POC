@@ -57,21 +57,49 @@ def _deploy_test_agent(client: TestClient) -> int:
     return agent_id
 
 
-def test_run_then_approve_full_cycle():
+def _latest_audit_event_type(agent_id: int) -> str:
+    """The outer chat agent's final message is the LLM's own paraphrase of
+    the generate_report tool's result — its exact wording isn't guaranteed
+    (whether it literally says "approved"/"rejected", or even states an
+    audit log id in a consistently parseable way), so decision correctness
+    has to be checked against the actual audit log row, not the chat text.
+    generate_report always resumes the pipeline on the same deterministic
+    thread id (chat-report-{instance_id}), so that's a reliable lookup key
+    independent of anything the LLM said."""
+    import psycopg
+
+    from app.core.config import settings
+
+    with psycopg.connect(settings.database_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT event_type FROM audit_log WHERE thread_id = %s "
+                "ORDER BY id DESC LIMIT 1;",
+                (f"chat-report-{agent_id}",),
+            )
+            row = cur.fetchone()
+            assert row is not None
+            return row[0]
+
+
+def test_chat_generate_report_then_approve_full_cycle():
     with TestClient(app) as client:
         agent_id = _deploy_test_agent(client)
         try:
-            run_resp = client.post(f"/agents/{agent_id}/reports/run")
-            assert run_resp.status_code == 200
-            data = run_resp.json()
+            chat_resp = client.post(
+                f"/agents/{agent_id}/chat",
+                json={"message": "Please generate this month's compliance report."},
+            )
+            assert chat_resp.status_code == 200
+            data = chat_resp.json()
             assert data["thread_id"]
-            assert data["workflow_name"] == "trustee_compliance_reporting"
-            assert "BREACH" in data["report"].upper()
-            assert data["extraction_warnings"] == []
+            assert data["pending_approval"] is not None
+            assert "BREACH" in data["pending_approval"]["report"].upper()
 
             decision_resp = client.post(
-                f"/reports/{data['workflow_name']}/{data['thread_id']}/decision",
+                f"/agents/{agent_id}/chat/decision",
                 json={
+                    "thread_id": data["thread_id"],
                     "decision": "approved",
                     "actor": "api_test_officer",
                     "comment": "looks good",
@@ -79,52 +107,54 @@ def test_run_then_approve_full_cycle():
             )
             assert decision_resp.status_code == 200
             decision_data = decision_resp.json()
-            assert decision_data["event_type"] == "report_approved"
-            assert isinstance(decision_data["audit_log_id"], int)
+            assert decision_data["pending_approval"] is None
+            assert _latest_audit_event_type(agent_id) == "report_approved"
         finally:
             _cleanup_agent(agent_id)
 
 
-def test_run_then_reject_full_cycle():
+def test_chat_generate_report_then_reject_full_cycle():
     with TestClient(app) as client:
         agent_id = _deploy_test_agent(client)
         try:
-            run_resp = client.post(f"/agents/{agent_id}/reports/run")
-            assert run_resp.status_code == 200
-            data = run_resp.json()
+            chat_resp = client.post(
+                f"/agents/{agent_id}/chat",
+                json={"message": "Please generate this month's compliance report."},
+            )
+            assert chat_resp.status_code == 200
+            data = chat_resp.json()
+            assert data["pending_approval"] is not None
 
             decision_resp = client.post(
-                f"/reports/{data['workflow_name']}/{data['thread_id']}/decision",
+                f"/agents/{agent_id}/chat/decision",
                 json={
+                    "thread_id": data["thread_id"],
                     "decision": "rejected",
                     "actor": "api_test_officer_2",
                     "comment": "needs revision",
                 },
             )
             assert decision_resp.status_code == 200
-            assert decision_resp.json()["event_type"] == "report_rejected"
+            assert _latest_audit_event_type(agent_id) == "report_rejected"
         finally:
             _cleanup_agent(agent_id)
 
 
-def test_run_report_rejects_undeployed_agent():
-    with TestClient(app) as client:
-        agent_id = _create_test_agent(client, "Draft Agent")
-        try:
-            run_resp = client.post(f"/agents/{agent_id}/reports/run")
-            assert run_resp.status_code == 400
-        finally:
-            _cleanup_agent(agent_id)
-
-
-def test_run_report_rejects_deployed_agent_with_no_holdings():
+def test_chat_generate_report_refuses_when_holdings_missing():
     with TestClient(app) as client:
         agent_id = _create_test_agent(client, "No Holdings Agent")
         _attach_knowledge(client, agent_id)
         client.post(f"/agents/{agent_id}/deploy")
         try:
-            run_resp = client.post(f"/agents/{agent_id}/reports/run")
-            assert run_resp.status_code == 400
+            chat_resp = client.post(
+                f"/agents/{agent_id}/chat",
+                json={"message": "Please generate this month's compliance report."},
+            )
+            assert chat_resp.status_code == 200
+            data = chat_resp.json()
+            # No pipeline to pause — the tool itself refuses before running it.
+            assert data["pending_approval"] is None
+            assert "upload" in data["message"].lower() or "holdings" in data["message"].lower()
         finally:
             _cleanup_agent(agent_id)
 

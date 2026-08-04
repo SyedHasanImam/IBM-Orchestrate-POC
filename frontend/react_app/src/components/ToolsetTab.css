@@ -24,6 +24,12 @@
   color: var(--color-danger);
 }
 
+.toolset-tab-empty {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .toolset-tab-cards {
   display: flex;
   flex-direction: column;

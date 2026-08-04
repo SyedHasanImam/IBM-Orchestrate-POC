@@ -172,10 +172,12 @@ export function AgentEditorPage() {
             )}
 
             {activeTab === "Knowledge" && (
-              <KnowledgeTab agentId={agent.id} templateName={agent.template_name} />
+              <KnowledgeTab agentId={agent.id} />
             )}
 
-            {activeTab === "Toolset" && <ToolsetTab templateName={agent.template_name} />}
+            {activeTab === "Toolset" && (
+              <ToolsetTab agent={agent} onAgentUpdated={setAgent} />
+            )}
 
             {activeTab === "Behavior" && (
               <div>

@@ -28,14 +28,6 @@ export type ExtractionWarning = {
   source?: string | null;
 };
 
-export type RunReportResponse = {
-  thread_id: string;
-  workflow_name: string;
-  report: string;
-  message: string;
-  extraction_warnings: ExtractionWarning[];
-};
-
 export type HoldingsSnapshot = {
   filename: string | null;
   uploaded_at: string | null;
@@ -57,17 +49,43 @@ export type ReconciliationDataOut = {
   warnings: ExtractionWarning[];
 };
 
+export type DataSourceStatus = {
+  key: string;
+  label: string;
+  description: string;
+  required: boolean;
+  kind: "holdings" | "reconciliation";
+  accept: string[];
+  filename: string | null;
+  uploaded_at: string | null;
+  count: number;
+  warnings: ExtractionWarning[];
+};
+
 export type Decision = "approved" | "rejected";
 
-export type DecisionResponse = {
-  audit_log_id: number;
-  event_type: string;
+export type PendingApproval = {
+  report: string;
+  message: string;
 };
 
 export type ChatResponse = {
   thread_id: string;
   message: string;
   routed_to: string | null;
+  pending_approval?: PendingApproval | null;
+};
+
+export type ChatDecisionRequest = {
+  thread_id: string;
+  decision: Decision;
+  actor: string;
+  comment: string | null;
+};
+
+export type ToolInfo = {
+  name: string;
+  description: string;
 };
 
 export type AgentInstance = {
@@ -78,6 +96,7 @@ export type AgentInstance = {
   instructions: string | null;
   status: "draft" | "deployed";
   included_in_chat: boolean;
+  extra_tools: string[];
   created_at: string;
   updated_at: string;
 };
@@ -87,6 +106,7 @@ export type UpdateAgentInstanceRequest = {
   description?: string;
   instructions?: string;
   included_in_chat?: boolean;
+  extra_tools?: string[];
 };
 
 export type AgentDocument = {
@@ -126,20 +146,7 @@ export const api = {
   getTemplate: (templateName: string) =>
     request<TemplateDetail>(`/templates/${templateName}`),
 
-  runAgentReport: (agentId: number) =>
-    request<RunReportResponse>(`/agents/${agentId}/reports/run`, { method: "POST" }),
-
-  submitDecision: (
-    workflowName: string,
-    threadId: string,
-    decision: Decision,
-    actor: string,
-    comment: string | null,
-  ) =>
-    request<DecisionResponse>(`/reports/${workflowName}/${threadId}/decision`, {
-      method: "POST",
-      body: JSON.stringify({ decision, actor, comment }),
-    }),
+  listTools: () => request<ToolInfo[]>("/tools"),
 
   chat: (message: string, threadId: string | null) =>
     request<ChatResponse>("/chat", {
@@ -192,6 +199,12 @@ export const api = {
       body: JSON.stringify({ message, thread_id: threadId }),
     }),
 
+  submitAgentChatDecision: (agentId: number, body: ChatDecisionRequest) =>
+    request<ChatResponse>(`/agents/${agentId}/chat/decision`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   getHoldings: (agentId: number) => request<HoldingsSnapshot>(`/agents/${agentId}/holdings`),
 
   uploadHoldings: (agentId: number, file: File) => {
@@ -211,4 +224,7 @@ export const api = {
       formData,
     );
   },
+
+  getDataSources: (agentId: number) =>
+    request<DataSourceStatus[]>(`/agents/${agentId}/data-sources`),
 };

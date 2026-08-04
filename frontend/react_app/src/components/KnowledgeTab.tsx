@@ -2,50 +2,17 @@ import { FileText, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, type AgentDocument } from "../api/client";
-import { HoldingsSection } from "./HoldingsSection";
-import { ReconciliationDataSection } from "./ReconciliationDataSection";
+import { DataSourcesSection } from "./DataSourcesSection";
 import { Button } from "./ui/Button";
 import "./KnowledgeTab.css";
 
-const HOLDINGS_DEPENDENT_TOOLS = ["get_fund_holdings", "get_portfolio_exposure_summary"];
-const RECONCILIATION_DEPENDENT_TOOLS = [
-  "get_fund_ledger",
-  "get_custodian_statement",
-  "get_trade_blotter",
-  "get_corporate_actions",
-  "match_positions",
-];
-
-export function KnowledgeTab({
-  agentId,
-  templateName,
-}: {
-  agentId: number;
-  templateName: string;
-}) {
+export function KnowledgeTab({ agentId }: { agentId: number }) {
   const [documents, setDocuments] = useState<AgentDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showHoldings, setShowHoldings] = useState(false);
-  const [showReconciliationData, setShowReconciliationData] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    api
-      .getTemplate(templateName)
-      .then((template) => {
-        setShowHoldings(template.tools.some((t) => HOLDINGS_DEPENDENT_TOOLS.includes(t)));
-        setShowReconciliationData(
-          template.tools.some((t) => RECONCILIATION_DEPENDENT_TOOLS.includes(t)),
-        );
-      })
-      .catch(() => {
-        setShowHoldings(false);
-        setShowReconciliationData(false);
-      });
-  }, [templateName]);
 
   function loadDocuments() {
     setLoading(true);
@@ -92,8 +59,7 @@ export function KnowledgeTab({
 
   return (
     <div className="knowledge-tab">
-      {showHoldings && <HoldingsSection agentId={agentId} />}
-      {showReconciliationData && <ReconciliationDataSection agentId={agentId} />}
+      <DataSourcesSection agentId={agentId} />
 
       <h3>Regulatory documents</h3>
       <p className="knowledge-tab-subtitle">

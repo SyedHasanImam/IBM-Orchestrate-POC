@@ -52,6 +52,60 @@
   font-style: italic;
 }
 
+.preview-chat-bubble-approval {
+  align-self: flex-start;
+  max-width: 96%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-bottom-left-radius: 4px;
+}
+
+.preview-chat-approval-message {
+  margin: 0 0 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.preview-chat-approval-report {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.preview-chat-approval-decision label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.preview-chat-approval-decision input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.preview-chat-approval-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-chat-approval-outcome {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 .preview-chat-error {
   color: var(--color-danger);
   font-size: 13px;

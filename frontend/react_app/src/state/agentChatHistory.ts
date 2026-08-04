@@ -1,6 +1,13 @@
 import { useSyncExternalStore } from "react";
 
-export type AgentChatMessage = { role: "user" | "assistant"; content: string };
+export type AgentChatMessage =
+  | { role: "user" | "assistant"; content: string }
+  | {
+      role: "approval";
+      report: string;
+      approvalMessage: string;
+      decision: "approved" | "rejected" | null;
+    };
 
 export interface AgentChatState {
   threadId: string | null;
@@ -8,6 +15,12 @@ export interface AgentChatState {
   input: string;
   loading: boolean;
   error: string | null;
+  // Reviewer identity for an in-flight approval card — kept alongside the
+  // rest of this agent's chat state rather than per-message, since only one
+  // approval can realistically be pending at a time.
+  actor: string;
+  comment: string;
+  deciding: boolean;
 }
 
 const EMPTY_STATE: AgentChatState = {
@@ -16,6 +29,9 @@ const EMPTY_STATE: AgentChatState = {
   input: "",
   loading: false,
   error: null,
+  actor: "",
+  comment: "",
+  deciding: false,
 };
 
 const states = new Map<number, AgentChatState>();
@@ -43,7 +59,7 @@ function subscribe(agentId: number, listener: () => void): () => void {
 
 /** Per-agent chat state survives navigating away and back (Editor <-> its
  * Preview tab, or the agent's own page) — keyed by agentId so each agent's
- * conversation is independent, same pattern as reportRuns.ts. */
+ * conversation is independent, same external-store pattern as chatHistory.ts. */
 export function useAgentChat(agentId: number): AgentChatState {
   return useSyncExternalStore(
     (listener) => subscribe(agentId, listener),

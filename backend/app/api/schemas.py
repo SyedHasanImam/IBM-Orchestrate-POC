@@ -25,6 +25,11 @@ class TemplateDetail(BaseModel):
     tools: list[str]
 
 
+class ToolInfo(BaseModel):
+    name: str
+    description: str
+
+
 class ExtractionWarningOut(BaseModel):
     row_reference: str
     field: str
@@ -33,14 +38,6 @@ class ExtractionWarningOut(BaseModel):
     # reconciliation's multi-document warnings, since holdings only ever has
     # one source document.
     source: str | None = None
-
-
-class RunReportResponse(BaseModel):
-    thread_id: str
-    workflow_name: str
-    report: str
-    message: str
-    extraction_warnings: list[ExtractionWarningOut] = []
 
 
 class HoldingsSnapshot(BaseModel):
@@ -58,15 +55,17 @@ class ReconciliationDataOut(BaseModel):
     warnings: list[ExtractionWarningOut] = []
 
 
-class DecisionRequest(BaseModel):
-    decision: Literal["approved", "rejected"]
-    actor: str
-    comment: str | None = None
-
-
-class DecisionResponse(BaseModel):
-    audit_log_id: int
-    event_type: str
+class DataSourceStatusOut(BaseModel):
+    key: str
+    label: str
+    description: str
+    required: bool
+    kind: Literal["holdings", "reconciliation"]
+    accept: list[str]
+    filename: str | None = None
+    uploaded_at: datetime | None = None
+    count: int = 0
+    warnings: list[ExtractionWarningOut] = []
 
 
 class ChatRequest(BaseModel):
@@ -74,10 +73,27 @@ class ChatRequest(BaseModel):
     message: str
 
 
+class PendingApprovalOut(BaseModel):
+    report: str
+    message: str
+
+
 class ChatResponse(BaseModel):
     thread_id: str
     message: str
     routed_to: str | None = None
+    # Set instead of a normal message when the agent's chat paused mid-turn
+    # waiting on a human approve/reject decision (the chat-driven report
+    # flow) — the frontend renders this as an inline approval card rather
+    # than plain text.
+    pending_approval: PendingApprovalOut | None = None
+
+
+class ChatDecisionRequest(BaseModel):
+    thread_id: str
+    decision: Literal["approved", "rejected"]
+    actor: str
+    comment: str | None = None
 
 
 class AgentInstance(BaseModel):
@@ -88,6 +104,7 @@ class AgentInstance(BaseModel):
     instructions: str | None = None
     status: Literal["draft", "deployed"]
     included_in_chat: bool = False
+    extra_tools: list[str] = []
     created_at: datetime
     updated_at: datetime
 
@@ -103,6 +120,7 @@ class UpdateAgentInstanceRequest(BaseModel):
     description: str | None = None
     instructions: str | None = None
     included_in_chat: bool | None = None
+    extra_tools: list[str] | None = None
 
 
 class AgentDocument(BaseModel):

@@ -1,11 +1,30 @@
-import { ArrowUp } from "lucide-react";
-import { api } from "../api/client";
-import { getAgentChat, updateAgentChat, useAgentChat } from "../state/agentChatHistory";
+import { ArrowUp, Check, X } from "lucide-react";
+import { api, type ChatResponse, type Decision } from "../api/client";
+import {
+  getAgentChat,
+  updateAgentChat,
+  useAgentChat,
+  type AgentChatMessage,
+} from "../state/agentChatHistory";
+import { Button } from "./ui/Button";
 import { Markdown } from "./ui/Markdown";
 import "./AgentPreviewChat.css";
 
+function messageFromResponse(data: ChatResponse): AgentChatMessage {
+  if (data.pending_approval) {
+    return {
+      role: "approval",
+      report: data.pending_approval.report,
+      approvalMessage: data.pending_approval.message,
+      decision: null,
+    };
+  }
+  return { role: "assistant", content: data.message };
+}
+
 export function AgentPreviewChat({ agentId }: { agentId: number }) {
-  const { threadId, messages, input, loading, error } = useAgentChat(agentId);
+  const { threadId, messages, input, loading, error, actor, comment, deciding } =
+    useAgentChat(agentId);
 
   async function handleSend() {
     const question = input.trim();
@@ -22,10 +41,7 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
       const data = await api.chatWithAgent(agentId, question, threadId);
       updateAgentChat(agentId, {
         threadId: data.thread_id,
-        messages: [
-          ...getAgentChat(agentId).messages,
-          { role: "assistant", content: data.message },
-        ],
+        messages: [...getAgentChat(agentId).messages, messageFromResponse(data)],
       });
     } catch (err) {
       updateAgentChat(agentId, {
@@ -33,6 +49,34 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
       });
     } finally {
       updateAgentChat(agentId, { loading: false });
+    }
+  }
+
+  async function handleDecision(decision: Decision, messageIndex: number) {
+    const state = getAgentChat(agentId);
+    if (!state.threadId) return;
+
+    updateAgentChat(agentId, { deciding: true, error: null });
+    try {
+      const data = await api.submitAgentChatDecision(agentId, {
+        thread_id: state.threadId,
+        decision,
+        actor: state.actor,
+        comment: state.comment || null,
+      });
+      const resolved = getAgentChat(agentId).messages.map((m, i) =>
+        i === messageIndex && m.role === "approval" ? { ...m, decision } : m,
+      );
+      updateAgentChat(agentId, {
+        threadId: data.thread_id,
+        messages: [...resolved, messageFromResponse(data)],
+      });
+    } catch (err) {
+      updateAgentChat(agentId, {
+        error: err instanceof Error ? err.message : "Failed to submit decision.",
+      });
+    } finally {
+      updateAgentChat(agentId, { deciding: false });
     }
   }
 
@@ -45,14 +89,70 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
             Knowledge you've attached so far.
           </p>
         )}
-        {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`preview-chat-bubble preview-chat-bubble-${message.role}`}
-          >
-            {message.role === "assistant" ? <Markdown>{message.content}</Markdown> : message.content}
-          </div>
-        ))}
+        {messages.map((message, index) => {
+          if (message.role === "approval") {
+            return (
+              <div key={index} className="preview-chat-bubble preview-chat-bubble-approval">
+                <p className="preview-chat-approval-message">{message.approvalMessage}</p>
+                <div className="preview-chat-approval-report">
+                  <Markdown>{message.report}</Markdown>
+                </div>
+                {message.decision ? (
+                  <p className="preview-chat-approval-outcome">
+                    {message.decision === "approved" ? "Approved." : "Rejected."}
+                  </p>
+                ) : (
+                  <div className="preview-chat-approval-decision">
+                    <label>
+                      Your name
+                      <input
+                        type="text"
+                        value={actor}
+                        onChange={(e) => updateAgentChat(agentId, { actor: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Comment (optional)
+                      <input
+                        type="text"
+                        value={comment}
+                        onChange={(e) => updateAgentChat(agentId, { comment: e.target.value })}
+                      />
+                    </label>
+                    <div className="preview-chat-approval-buttons">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!actor.trim() || deciding}
+                        onClick={() => handleDecision("approved", index)}
+                      >
+                        <Check size={13} />
+                        Approve
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        disabled={!actor.trim() || deciding}
+                        onClick={() => handleDecision("rejected", index)}
+                      >
+                        <X size={13} />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+          return (
+            <div
+              key={index}
+              className={`preview-chat-bubble preview-chat-bubble-${message.role}`}
+            >
+              {message.role === "assistant" ? <Markdown>{message.content}</Markdown> : message.content}
+            </div>
+          );
+        })}
         {loading && (
           <div className="preview-chat-bubble preview-chat-bubble-assistant preview-chat-loading">
             Thinking…

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, type AgentInstance } from "../api/client";
 import { AgentPreviewChat } from "../components/AgentPreviewChat";
-import { RunReportPanel } from "../components/RunReportPanel";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import "./AgentPage.css";
 
@@ -48,14 +47,7 @@ export function AgentPage() {
       </div>
 
       <div className="agent-page-body">
-        <div className="agent-page-left">
-          <RunReportPanel key={agent.id} agentId={agent.id} />
-        </div>
-
-        <div className="agent-page-preview">
-          <div className="agent-page-preview-header">Chat</div>
-          <AgentPreviewChat key={agent.id} agentId={agent.id} />
-        </div>
+        <AgentPreviewChat key={agent.id} agentId={agent.id} />
       </div>
     </div>
   );

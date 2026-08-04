@@ -20,17 +20,18 @@ from app.api.schemas import (
     AgentDocument,
     AgentInstance,
     CatalogEntry,
+    ChatDecisionRequest,
     ChatRequest,
     ChatResponse,
     CreateAgentInstanceRequest,
-    DecisionRequest,
-    DecisionResponse,
+    DataSourceStatusOut,
     ExtractionWarningOut,
     HoldingsSnapshot,
+    PendingApprovalOut,
     ReconciliationDataOut,
-    RunReportResponse,
     TemplateDetail,
     TemplateNodeSummary,
+    ToolInfo,
     UpdateAgentInstanceRequest,
 )
 from app.core.config import DB_CONNECT_TIMEOUT_SECONDS, settings
@@ -59,57 +60,25 @@ from app.platform.rag.ingest import (
     ingest_document_for_instance,
 )
 from app.platform.runtime.agent_chat import build_agent_preview_chat
-from app.platform.runtime.factory import build_workflow_from_config
 from app.platform.runtime.loader import (
     list_registered_workflows,
     load_workflow_config,
     register_workflow,
 )
+from app.platform.runtime.report_tool import workflow_tool_names
 from app.platform.runtime.supervisor import (
     build_chat_supervisor,
     collaborator_name,
     extract_final_answer,
     extract_routed_to,
 )
+from app.platform.tools.data_sources import required_data_sources
+from app.platform.tools.registry import TOOL_REGISTRY
 
 WORKFLOW_YAML_PATHS: list[Path] = [
     TRUSTEE_COMPLIANCE_WORKFLOW_YAML_PATH,
     STOCK_RECONCILIATION_WORKFLOW_YAML_PATH,
 ]
-
-# Only some workflows depend on an instance's uploaded holdings snapshot —
-# gating /reports/run on it universally would wrongly block a different
-# workflow (like reconciliation) that depends on its own data instead.
-HOLDINGS_DEPENDENT_TOOLS = {"get_fund_holdings", "get_portfolio_exposure_summary"}
-RECONCILIATION_DEPENDENT_TOOLS = {
-    "get_fund_ledger",
-    "get_custodian_statement",
-    "get_trade_blotter",
-    "get_corporate_actions",
-    "match_positions",
-}
-# Trade blotter and corporate actions only help *explain* breaks — their
-# absence just means fewer breaks get auto-explained, not that reconciliation
-# can't run at all. Ledger and custodian statement are the two sides being
-# compared, so both are mandatory.
-RECONCILIATION_REQUIRED_DOCS = ("ledger", "custodian_statement")
-
-
-def _workflow_tool_names(config) -> set[str]:
-    return {
-        tool_name
-        for node in config.nodes
-        if node.type == "llm_agent"
-        for tool_name in node.tools
-    }
-
-
-def _workflow_requires_holdings(config) -> bool:
-    return bool(_workflow_tool_names(config) & HOLDINGS_DEPENDENT_TOOLS)
-
-
-def _workflow_requires_reconciliation_data(config) -> bool:
-    return bool(_workflow_tool_names(config) & RECONCILIATION_DEPENDENT_TOOLS)
 
 
 @asynccontextmanager
@@ -169,35 +138,6 @@ def _get_workflow_config(workflow_name: str):
     return config
 
 
-@app.post(
-    "/reports/{workflow_name}/{thread_id}/decision", response_model=DecisionResponse
-)
-def submit_decision(
-    workflow_name: str, thread_id: str, body: DecisionRequest
-) -> DecisionResponse:
-    config = _get_workflow_config(workflow_name)
-    pipeline = build_workflow_from_config(config, app.state.checkpointer)
-    run_config = {"configurable": {"thread_id": thread_id}}
-
-    result = pipeline.invoke(
-        Command(
-            resume={
-                "decision": body.decision,
-                "actor": body.actor,
-                "comment": body.comment,
-            }
-        ),
-        config=run_config,
-    )
-    if "audit_log_id" not in result:
-        raise HTTPException(
-            status_code=500, detail="Decision did not finalize as expected."
-        )
-
-    event_type = "report_approved" if body.decision == "approved" else "report_rejected"
-    return DecisionResponse(audit_log_id=result["audit_log_id"], event_type=event_type)
-
-
 @app.get("/catalog", response_model=list[CatalogEntry])
 def list_catalog() -> list[CatalogEntry]:
     return [CatalogEntry(**row) for row in list_registered_workflows()]
@@ -249,10 +189,26 @@ def get_agent(agent_id: int) -> AgentInstance:
 @app.patch("/agents/{agent_id}", response_model=AgentInstance)
 def patch_agent(agent_id: int, body: UpdateAgentInstanceRequest) -> AgentInstance:
     fields = body.model_dump(exclude_unset=True)
+    if "extra_tools" in fields:
+        unknown = set(fields["extra_tools"]) - TOOL_REGISTRY.keys()
+        if unknown:
+            raise HTTPException(
+                status_code=400, detail=f"Unknown tool(s): {sorted(unknown)}"
+            )
     row = update_instance(agent_id, **fields)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
     return AgentInstance(**row)
+
+
+@app.get("/tools", response_model=list[ToolInfo])
+def list_tools() -> list[ToolInfo]:
+    """Every tool available to be added to an agent via the Toolset tab's
+    Add tool button — not just what a given template already uses."""
+    return [
+        ToolInfo(name=name, description=tool.description or "")
+        for name, tool in sorted(TOOL_REGISTRY.items())
+    ]
 
 
 @app.post("/agents/{agent_id}/deploy", response_model=AgentInstance)
@@ -272,75 +228,64 @@ def delete_agent(agent_id: int) -> AgentInstance:
     return AgentInstance(**row)
 
 
-@app.post("/agents/{agent_id}/reports/run", response_model=RunReportResponse)
-def run_agent_report(agent_id: int) -> RunReportResponse:
-    agent = get_instance(agent_id)
-    if agent is None:
-        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
-    if agent["status"] != "deployed":
-        raise HTTPException(
-            status_code=400,
-            detail="Agent must be deployed before it can generate reports.",
-        )
-
-    workflow_name = agent["template_name"]
-    config = _get_workflow_config(workflow_name)
-    if _workflow_requires_holdings(config) and not agent.get("holdings_snapshot"):
-        raise HTTPException(
-            status_code=400,
-            detail="Upload this agent's holdings (Knowledge tab) before generating a report.",
-        )
-    if _workflow_requires_reconciliation_data(config):
-        inputs = agent.get("reconciliation_inputs") or {}
-        missing = [
-            doc_type
-            for doc_type in RECONCILIATION_REQUIRED_DOCS
-            if not (inputs.get(doc_type) or {}).get("rows")
-        ]
-        if missing:
-            missing_labels = [doc_type.replace("_", " ") for doc_type in missing]
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Upload this agent's "
-                    + " and ".join(missing_labels)
-                    + " (Knowledge tab) before generating a report."
-                ),
-            )
-
-    thread_id = f"agent-{agent_id}-{uuid.uuid4()}"
-    pipeline = build_workflow_from_config(config, app.state.checkpointer)
-    run_config = {
-        "configurable": {"thread_id": thread_id, "agent_instance_id": agent_id}
-    }
-
-    result = pipeline.invoke({}, config=run_config)
-    if "__interrupt__" not in result:
-        raise HTTPException(
-            status_code=500,
-            detail="Pipeline did not pause for approval as expected.",
-        )
-
-    interrupt_payload = result["__interrupt__"][0].value
-    warnings = [ExtractionWarningOut(**w) for w in (agent.get("holdings_warnings") or [])]
-    if _workflow_requires_reconciliation_data(config):
-        inputs = agent.get("reconciliation_inputs") or {}
-        for doc_type in RECONCILIATION_DOCUMENT_TYPES:
-            for w in (inputs.get(doc_type) or {}).get("warnings", []):
-                warnings.append(ExtractionWarningOut(source=doc_type, **w))
-
-    return RunReportResponse(
-        thread_id=thread_id,
-        workflow_name=workflow_name,
-        report=interrupt_payload["report"],
-        message=interrupt_payload["message"],
-        extraction_warnings=warnings,
-    )
-
-
 def _get_agent_or_404(agent_id: int) -> None:
     if get_instance(agent_id) is None:
         raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+
+@app.get("/agents/{agent_id}/data-sources", response_model=list[DataSourceStatusOut])
+def get_agent_data_sources(agent_id: int) -> list[DataSourceStatusOut]:
+    """Which documents this agent currently needs uploaded — computed from
+    its template's own tools plus whatever's been added via Add Tool, so a
+    newly added tool's upload slot shows up here without any frontend code
+    change. Backs the Knowledge tab's generic "Upload Documents" section."""
+    instance = get_instance(agent_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+    workflow_config = _get_workflow_config(instance["template_name"])
+    tool_names = workflow_tool_names(workflow_config) | set(instance.get("extra_tools") or [])
+
+    result = []
+    for spec in required_data_sources(tool_names):
+        if spec.kind == "holdings":
+            holdings = instance.get("holdings_snapshot") or []
+            result.append(
+                DataSourceStatusOut(
+                    key=spec.key,
+                    label=spec.label,
+                    description=spec.description,
+                    required=spec.required,
+                    kind=spec.kind,
+                    accept=list(spec.accept),
+                    filename=instance.get("holdings_filename"),
+                    uploaded_at=instance.get("holdings_uploaded_at"),
+                    count=len(holdings),
+                    warnings=[
+                        ExtractionWarningOut(**w) for w in (instance.get("holdings_warnings") or [])
+                    ],
+                )
+            )
+        else:
+            inputs = instance.get("reconciliation_inputs") or {}
+            slot = inputs.get(spec.key) or {}
+            result.append(
+                DataSourceStatusOut(
+                    key=spec.key,
+                    label=spec.label,
+                    description=spec.description,
+                    required=spec.required,
+                    kind=spec.kind,
+                    accept=list(spec.accept),
+                    filename=slot.get("filename"),
+                    uploaded_at=slot.get("uploaded_at"),
+                    count=len(slot.get("rows", [])),
+                    warnings=[
+                        ExtractionWarningOut(source=spec.key, **w) for w in slot.get("warnings", [])
+                    ],
+                )
+            )
+    return result
 
 
 SUPPORTED_HOLDINGS_EXTENSIONS = (".xlsx", ".pdf")
@@ -515,8 +460,53 @@ def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
         {"messages": [HumanMessage(content=body.message)]}, config=config
     )
 
+    if "__interrupt__" in result:
+        payload = result["__interrupt__"][0].value
+        return ChatResponse(
+            thread_id=thread_id, message="", pending_approval=PendingApprovalOut(**payload)
+        )
+
     return ChatResponse(
         thread_id=thread_id,
+        message=extract_text(result["messages"][-1]),
+        routed_to=None,
+    )
+
+
+@app.post("/agents/{agent_id}/chat/decision", response_model=ChatResponse)
+def submit_agent_chat_decision(agent_id: int, body: ChatDecisionRequest) -> ChatResponse:
+    """Resumes a per-agent chat thread that's paused waiting on an
+    approve/reject decision from the chat-driven generate_report tool — the
+    same underlying pipeline and audit log as the old Run Report button,
+    just resumed through this agent's own chat graph instead of a
+    standalone one."""
+    instance = get_instance(agent_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+
+    workflow_config = _get_workflow_config(instance["template_name"])
+    agent = build_agent_preview_chat(instance, workflow_config, app.state.checkpointer)
+    config = {
+        "configurable": {"thread_id": body.thread_id},
+        "run_name": "agent-preview-chat",
+        "callbacks": [get_langfuse_handler()],
+    }
+
+    result = agent.invoke(
+        Command(
+            resume={"decision": body.decision, "actor": body.actor, "comment": body.comment}
+        ),
+        config=config,
+    )
+
+    if "__interrupt__" in result:
+        payload = result["__interrupt__"][0].value
+        return ChatResponse(
+            thread_id=body.thread_id, message="", pending_approval=PendingApprovalOut(**payload)
+        )
+
+    return ChatResponse(
+        thread_id=body.thread_id,
         message=extract_text(result["messages"][-1]),
         routed_to=None,
     )

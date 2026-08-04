@@ -74,6 +74,14 @@ ALTER TABLE agent_instances
     ADD COLUMN IF NOT EXISTS included_in_chat BOOLEAN NOT NULL DEFAULT false;
 """
 
+# Tool names the user has manually added on top of whatever the template's
+# own workflow already gives this agent (the Toolset tab's "Add tool") — a
+# plain array of TOOL_REGISTRY keys, validated at the API layer.
+AGENT_INSTANCES_EXTRA_TOOLS_COLUMN_DDL = """
+ALTER TABLE agent_instances
+    ADD COLUMN IF NOT EXISTS extra_tools TEXT[] NOT NULL DEFAULT '{}';
+"""
+
 
 def ensure_instances_schema() -> None:
     """Create the agent_instances/agent_instance_documents tables (and add
@@ -90,4 +98,5 @@ def ensure_instances_schema() -> None:
             cur.execute(AGENT_INSTANCES_HOLDINGS_COLUMNS_DDL)
             cur.execute(AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_CHAT_COLUMN_DDL)
+            cur.execute(AGENT_INSTANCES_EXTRA_TOOLS_COLUMN_DDL)
         conn.commit()
