@@ -51,7 +51,18 @@ def compute_compliance_checks(exposure_summary: dict) -> dict:
     Investment Mandate's five compliance checks. Kept as plain, non-LLM
     comparison — same reasoning as compute_position_matches for
     reconciliation — so BREACH/PASS is never left to the model to judge or
-    misread from retrieved text."""
+    misread from retrieved text.
+
+    If no holdings are attached at all, skips every check rather than
+    returning verdicts computed over an empty portfolio — an empty
+    portfolio's figures (0% everywhere) are mathematically indistinguishable
+    from real ones, so silently running the checks anyway would produce a
+    technically-well-formed but meaningless PASS/BREACH result (e.g. "0
+    holdings matched the Shariah non-compliant list" reading as a clean
+    PASS, when really there's no data to judge at all)."""
+    if not exposure_summary.get("data_available"):
+        return {"checks": [], "breach_count": 0, "data_available": False}
+
     sector_totals = exposure_summary["sector_totals"]
     largest_issuer = exposure_summary["largest_single_issuer"]
     holdings = exposure_summary["holdings"]
@@ -148,6 +159,7 @@ def compute_compliance_checks(exposure_summary: dict) -> dict:
     return {
         "checks": checks,
         "breach_count": sum(1 for c in checks if c["status"] == "BREACH"),
+        "data_available": True,
     }
 
 
@@ -162,9 +174,13 @@ def check_compliance_limits() -> dict:
     mandate text.
 
     Returns:
-        A dict with "checks" (one entry per limit — check name, figure_pct,
-        limit_pct, limit_type, status "BREACH"/"PASS", citation, and a
-        human-readable detail) and "breach_count".
+        A dict with data_available — if False, no holdings are attached at
+        all and "checks" is empty; tell the user holdings need to be
+        uploaded first and do not report any BREACH/PASS status, since
+        there is nothing to check. If True, "checks" has one entry per
+        limit (check name, figure_pct, limit_pct, limit_type, status
+        "BREACH"/"PASS", citation, and a human-readable detail) plus
+        "breach_count".
     """
     holdings = get_fund_holdings.invoke({})
     return compute_compliance_checks(compute_exposure_summary(holdings))
@@ -186,9 +202,13 @@ def make_check_compliance_limits_tool(instance_id: int):
         recompute a verdict yourself from retrieved mandate text.
 
         Returns:
-            A dict with "checks" (one entry per limit — check name,
-            figure_pct, limit_pct, limit_type, status "BREACH"/"PASS",
-            citation, and a human-readable detail) and "breach_count".
+            A dict with data_available — if False, no holdings are
+            attached at all and "checks" is empty; tell the user holdings
+            need to be uploaded first and do not report any BREACH/PASS
+            status, since there is nothing to check. If True, "checks" has
+            one entry per limit (check name, figure_pct, limit_pct,
+            limit_type, status "BREACH"/"PASS", citation, and a
+            human-readable detail) plus "breach_count".
         """
         exposure_summary = make_get_portfolio_exposure_summary_tool(instance_id).invoke({})
         return compute_compliance_checks(exposure_summary)

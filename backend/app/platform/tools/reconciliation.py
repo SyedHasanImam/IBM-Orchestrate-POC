@@ -193,8 +193,11 @@ def make_match_positions_tool(instance_id: int):
         estimate, or recompute them.
 
         Returns:
-            A dict with matched_position_count, break_count, and breaks
-            (one entry per break — security_id, security_name,
+            A dict with data_available — if False, neither the ledger nor
+            custodian statement have been uploaded and break_count is
+            meaningless; tell the user that data instead of reporting "0
+            breaks". If True, matched_position_count, break_count, and
+            breaks (one entry per break — security_id, security_name,
             ledger_quantity, custodian_quantity, quantity_difference,
             status "explained"/"unexplained", explanation_type, and
             explanation_detail).
@@ -226,7 +229,20 @@ def compute_position_matches(
     actions calendar (a bonus/split action can explain a quantity
     difference). Kept as plain, non-LLM computation so the exact quantities
     and differences are never left to the model to estimate or recompute.
+
+    If both the ledger and custodian statement are empty, skips matching
+    entirely rather than returning "0 breaks" — with nothing on either
+    side to compare, that reads as a clean reconciliation when it's really
+    that no data has been uploaded at all.
     """
+    if not ledger and not custodian:
+        return {
+            "matched_position_count": 0,
+            "break_count": 0,
+            "breaks": [],
+            "data_available": False,
+        }
+
     ledger_by_id = {
         row["security_id"]: row
         for row in ledger
@@ -286,6 +302,7 @@ def compute_position_matches(
         "matched_position_count": matched_count,
         "break_count": len(breaks),
         "breaks": breaks,
+        "data_available": True,
     }
 
 
@@ -302,9 +319,12 @@ def match_positions() -> dict:
     or recompute them.
 
     Returns:
-        A dict with matched_position_count, break_count, and breaks (one
-        entry per break — security_id, security_name, ledger_quantity,
-        custodian_quantity, quantity_difference, status
+        A dict with data_available — if False, neither the ledger nor
+        custodian statement have been uploaded and break_count is
+        meaningless; tell the user that data instead of reporting "0
+        breaks". If True, matched_position_count, break_count, and breaks
+        (one entry per break — security_id, security_name,
+        ledger_quantity, custodian_quantity, quantity_difference, status
         "explained"/"unexplained", explanation_type, and
         explanation_detail).
     """

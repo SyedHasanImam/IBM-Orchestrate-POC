@@ -39,6 +39,11 @@ def compute_exposure_summary(holdings: list[dict]) -> dict:
     )
 
     return {
+        # False when there are no holdings at all — an empty portfolio
+        # computes to all-zero figures that are indistinguishable from a
+        # real (if unusual) 0% reading, so callers must check this rather
+        # than inferring "no data" from zeros alone.
+        "data_available": bool(holdings),
         "sector_totals": {k: round(v, 2) for k, v in sector_totals.items()},
         "asset_class_totals": {k: round(v, 2) for k, v in asset_class_totals.items()},
         "largest_single_issuer": largest_issuer,
@@ -56,7 +61,10 @@ def get_portfolio_exposure_summary() -> dict:
     recompute them.
 
     Returns:
-        A dict with sector_totals, asset_class_totals,
+        A dict with data_available (False if no holdings are attached at
+        all — check this before reporting any figure, since an empty
+        portfolio computes to all-zero values indistinguishable from a
+        real 0% reading), sector_totals, asset_class_totals,
         largest_single_issuer, liquidity_pct, equity_allocation_pct, and
         the raw holdings list they were computed from.
     """
@@ -77,7 +85,10 @@ def make_get_portfolio_exposure_summary_tool(instance_id: int):
         or recompute them.
 
         Returns:
-            A dict with sector_totals, asset_class_totals,
+            A dict with data_available (False if no holdings are attached
+            at all — check this before reporting any figure, since an
+            empty portfolio computes to all-zero values indistinguishable
+            from a real 0% reading), sector_totals, asset_class_totals,
             largest_single_issuer, liquidity_pct, equity_allocation_pct,
             and the raw holdings list they were computed from.
         """
