@@ -73,6 +73,8 @@ def build_chat_supervisor(
             instance,
             workflow_configs[instance["template_name"]],
             name=collaborator_name(instance["id"]),
+            checkpointer=checkpointer,
+            include_report_tool=True,
         )
         for instance in instances
     ]
@@ -80,6 +82,13 @@ def build_chat_supervisor(
         collaborators,
         model=model,
         prompt=_routing_prompt(instances),
+        # Needed so a collaborator's own generate_report tool call is
+        # visible in the supervisor's message state — the default
+        # "last_message" mode trims a collaborator's turn down to just its
+        # final reply, which drops the ToolMessage main.py checks for to
+        # know a report just went pending (rather than an old one from
+        # several turns ago) resurfacing on an unrelated question.
+        output_mode="full_history",
     )
     return supervisor.compile(checkpointer=checkpointer)
 

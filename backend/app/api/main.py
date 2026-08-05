@@ -4,9 +4,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.types import Command
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -27,6 +26,7 @@ from app.api.schemas import (
     DataSourceStatusOut,
     ExtractionWarningOut,
     HoldingsSnapshot,
+    HomeChatDecisionRequest,
     PendingApprovalOut,
     ReconciliationDataOut,
     TemplateDetail,
@@ -65,7 +65,12 @@ from app.platform.runtime.loader import (
     load_workflow_config,
     register_workflow,
 )
-from app.platform.runtime.report_tool import workflow_tool_names
+from app.platform.runtime.report_tool import (
+    GENERATE_REPORT_TOOL_NAME,
+    get_pending_report,
+    submit_report_decision,
+    workflow_tool_names,
+)
 from app.platform.runtime.supervisor import (
     build_chat_supervisor,
     collaborator_name,
@@ -136,6 +141,18 @@ def _get_workflow_config(workflow_name: str):
     if config is None:
         raise HTTPException(status_code=404, detail=f"Unknown workflow: {workflow_name}")
     return config
+
+
+def _generate_report_called(new_messages: list) -> bool:
+    """Whether generate_report actually ran during this turn's new
+    messages — not just whether *some* report is sitting pending from a
+    previous, unrelated turn. Without this check, asking an unrelated
+    question while an old report is still awaiting a decision would
+    silently replace the answer with that stale approval card again."""
+    return any(
+        isinstance(m, ToolMessage) and m.name == GENERATE_REPORT_TOOL_NAME
+        for m in new_messages
+    )
 
 
 @app.get("/catalog", response_model=list[CatalogEntry])
@@ -456,15 +473,19 @@ def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
         "callbacks": [get_langfuse_handler()],
     }
 
+    before_count = len(agent.get_state(config).values.get("messages", []))
     result = agent.invoke(
         {"messages": [HumanMessage(content=body.message)]}, config=config
     )
 
-    if "__interrupt__" in result:
-        payload = result["__interrupt__"][0].value
-        return ChatResponse(
-            thread_id=thread_id, message="", pending_approval=PendingApprovalOut(**payload)
-        )
+    if _generate_report_called(result["messages"][before_count:]):
+        pending = get_pending_report(agent_id, workflow_config, app.state.checkpointer)
+        if pending:
+            return ChatResponse(
+                thread_id=thread_id,
+                message="",
+                pending_approval=PendingApprovalOut(agent_id=agent_id, **pending),
+            )
 
     return ChatResponse(
         thread_id=thread_id,
@@ -475,40 +496,29 @@ def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
 
 @app.post("/agents/{agent_id}/chat/decision", response_model=ChatResponse)
 def submit_agent_chat_decision(agent_id: int, body: ChatDecisionRequest) -> ChatResponse:
-    """Resumes a per-agent chat thread that's paused waiting on an
-    approve/reject decision from the chat-driven generate_report tool — the
-    same underlying pipeline and audit log as the old Run Report button,
-    just resumed through this agent's own chat graph instead of a
-    standalone one."""
+    """Approves/rejects this agent's pending report by resuming its report
+    pipeline directly (report_tool.submit_report_decision) — independent of
+    this chat's own conversation state, so the same function backs both
+    this endpoint and the homepage chat's /chat/decision below."""
     instance = get_instance(agent_id)
     if instance is None:
         raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
 
     workflow_config = _get_workflow_config(instance["template_name"])
-    agent = build_agent_preview_chat(instance, workflow_config, app.state.checkpointer)
-    config = {
-        "configurable": {"thread_id": body.thread_id},
-        "run_name": "agent-preview-chat",
-        "callbacks": [get_langfuse_handler()],
-    }
-
-    result = agent.invoke(
-        Command(
-            resume={"decision": body.decision, "actor": body.actor, "comment": body.comment}
-        ),
-        config=config,
+    result = submit_report_decision(
+        agent_id,
+        workflow_config,
+        app.state.checkpointer,
+        decision=body.decision,
+        actor=body.actor,
+        comment=body.comment,
     )
-
-    if "__interrupt__" in result:
-        payload = result["__interrupt__"][0].value
-        return ChatResponse(
-            thread_id=body.thread_id, message="", pending_approval=PendingApprovalOut(**payload)
-        )
-
     return ChatResponse(
         thread_id=body.thread_id,
-        message=extract_text(result["messages"][-1]),
-        routed_to=None,
+        message=(
+            f"Report {result['decision']}. Audit log id: {result['audit_log_id']}."
+            f"\n\n{result['report']}"
+        ),
     )
 
 
@@ -529,21 +539,59 @@ def chat(body: ChatRequest) -> ChatResponse:
         "callbacks": [get_langfuse_handler()],
     }
 
+    before_count = len(supervisor.get_state(config).values.get("messages", []))
     result = supervisor.invoke(
         {"messages": [HumanMessage(content=body.message)]}, config=config
     )
 
     collaborator_names = {collaborator_name(i["id"]) for i in selected_instances}
-    routed_to = extract_routed_to(result["messages"])
-    if routed_to:
-        matched = next(
-            (i for i in selected_instances if collaborator_name(i["id"]) == routed_to),
-            None,
+    routed_to_name = extract_routed_to(result["messages"])
+    matched = next(
+        (i for i in selected_instances if collaborator_name(i["id"]) == routed_to_name),
+        None,
+    )
+
+    if matched and _generate_report_called(result["messages"][before_count:]):
+        pending = get_pending_report(
+            matched["id"], app.state.workflow_configs[matched["template_name"]], app.state.checkpointer
         )
-        routed_to = matched["display_name"] if matched else routed_to
+        if pending:
+            return ChatResponse(
+                thread_id=thread_id,
+                message="",
+                pending_approval=PendingApprovalOut(agent_id=matched["id"], **pending),
+            )
 
     return ChatResponse(
         thread_id=thread_id,
         message=extract_final_answer(result["messages"], collaborator_names),
-        routed_to=routed_to,
+        routed_to=matched["display_name"] if matched else routed_to_name,
+    )
+
+
+@app.post("/chat/decision", response_model=ChatResponse)
+def submit_chat_decision(body: HomeChatDecisionRequest) -> ChatResponse:
+    """Approves/rejects a report generated through the homepage's
+    multi-agent chat — needs agent_id (unlike the per-agent decision
+    endpoint) since more than one collaborator could be involved. Resumes
+    the same report pipeline directly, same as the per-agent endpoint."""
+    instance = get_instance(body.agent_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {body.agent_id}")
+
+    workflow_config = _get_workflow_config(instance["template_name"])
+    result = submit_report_decision(
+        body.agent_id,
+        workflow_config,
+        app.state.checkpointer,
+        decision=body.decision,
+        actor=body.actor,
+        comment=body.comment,
+    )
+    return ChatResponse(
+        thread_id=body.thread_id,
+        message=(
+            f"Report {result['decision']}. Audit log id: {result['audit_log_id']}."
+            f"\n\n{result['report']}"
+        ),
     )

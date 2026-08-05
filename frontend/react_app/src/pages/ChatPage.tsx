@@ -1,8 +1,9 @@
-import { ArrowUp, Sparkles, Users } from "lucide-react";
+import { ArrowUp, Check, Sparkles, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { api, type AgentInstance } from "../api/client";
+import { api, type AgentInstance, type ChatResponse, type Decision } from "../api/client";
 import { ChatAgentPicker } from "../components/ChatAgentPicker";
 import { AgentIcon } from "../components/ui/AgentIcon";
+import { Button } from "../components/ui/Button";
 import { Markdown } from "../components/ui/Markdown";
 import { onAgentsChanged } from "../state/agentEvents";
 import {
@@ -10,8 +11,22 @@ import {
   resetChatHistory,
   updateChatHistory,
   useChatHistory,
+  type ChatMessage,
 } from "../state/chatHistory";
 import "./ChatPage.css";
+
+function messageFromResponse(data: ChatResponse): ChatMessage {
+  if (data.pending_approval) {
+    return {
+      role: "approval",
+      agentId: data.pending_approval.agent_id,
+      report: data.pending_approval.report,
+      approvalMessage: data.pending_approval.message,
+      decision: null,
+    };
+  }
+  return { role: "assistant", content: data.message, routedTo: data.routed_to };
+}
 
 // Known templates get curated, realistic questions; anything else (a future
 // third agent type) still gets a reasonable generic suggestion rather than
@@ -51,7 +66,8 @@ function suggestionsFor(agents: AgentInstance[]): string[] {
 }
 
 export function ChatPage() {
-  const { threadId, messages, input, loading, error } = useChatHistory();
+  const { threadId, messages, input, loading, error, actor, comment, deciding } =
+    useChatHistory();
   const [includedAgents, setIncludedAgents] = useState<AgentInstance[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -84,10 +100,7 @@ export function ChatPage() {
       const data = await api.chat(question, threadId);
       updateChatHistory({
         threadId: data.thread_id,
-        messages: [
-          ...getChatHistory().messages,
-          { role: "assistant", content: data.message, routedTo: data.routed_to },
-        ],
+        messages: [...getChatHistory().messages, messageFromResponse(data)],
       });
     } catch (err) {
       updateChatHistory({
@@ -95,6 +108,35 @@ export function ChatPage() {
       });
     } finally {
       updateChatHistory({ loading: false });
+    }
+  }
+
+  async function handleDecision(agentId: number, decision: Decision, messageIndex: number) {
+    const state = getChatHistory();
+    if (!state.threadId) return;
+
+    updateChatHistory({ deciding: true, error: null });
+    try {
+      const data = await api.submitChatDecision({
+        agent_id: agentId,
+        thread_id: state.threadId,
+        decision,
+        actor: state.actor,
+        comment: state.comment || null,
+      });
+      const resolved = getChatHistory().messages.map((m, i) =>
+        i === messageIndex && m.role === "approval" ? { ...m, decision } : m,
+      );
+      updateChatHistory({
+        threadId: data.thread_id,
+        messages: [...resolved, messageFromResponse(data)],
+      });
+    } catch (err) {
+      updateChatHistory({
+        error: err instanceof Error ? err.message : "Failed to submit decision.",
+      });
+    } finally {
+      updateChatHistory({ deciding: false });
     }
   }
 
@@ -183,18 +225,74 @@ export function ChatPage() {
       ) : (
         <>
           <div className="chat-window">
-            {messages.map((message, index) => (
-              <div key={index} className={`chat-bubble chat-bubble-${message.role}`}>
-                {message.role === "assistant" ? (
-                  <Markdown>{message.content}</Markdown>
-                ) : (
-                  <div className="chat-bubble-content">{message.content}</div>
-                )}
-                {message.routedTo && (
-                  <div className="chat-routed-to">Routed to: {message.routedTo}</div>
-                )}
-              </div>
-            ))}
+            {messages.map((message, index) => {
+              if (message.role === "approval") {
+                return (
+                  <div key={index} className="chat-bubble chat-bubble-approval">
+                    <p className="chat-approval-message">{message.approvalMessage}</p>
+                    <div className="chat-approval-report">
+                      <Markdown>{message.report}</Markdown>
+                    </div>
+                    {message.decision ? (
+                      <p className="chat-approval-outcome">
+                        {message.decision === "approved" ? "Approved." : "Rejected."}
+                      </p>
+                    ) : (
+                      <div className="chat-approval-decision">
+                        <label>
+                          Your name
+                          <input
+                            type="text"
+                            value={actor}
+                            onChange={(e) => updateChatHistory({ actor: e.target.value })}
+                          />
+                        </label>
+                        <label>
+                          Comment (optional)
+                          <input
+                            type="text"
+                            value={comment}
+                            onChange={(e) => updateChatHistory({ comment: e.target.value })}
+                          />
+                        </label>
+                        <div className="chat-approval-buttons">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={!actor.trim() || deciding}
+                            onClick={() => handleDecision(message.agentId, "approved", index)}
+                          >
+                            <Check size={13} />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            disabled={!actor.trim() || deciding}
+                            onClick={() => handleDecision(message.agentId, "rejected", index)}
+                          >
+                            <X size={13} />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div key={index} className={`chat-bubble chat-bubble-${message.role}`}>
+                  {message.role === "assistant" ? (
+                    <Markdown>{message.content}</Markdown>
+                  ) : (
+                    <div className="chat-bubble-content">{message.content}</div>
+                  )}
+                  {message.role === "assistant" && message.routedTo && (
+                    <div className="chat-routed-to">Routed to: {message.routedTo}</div>
+                  )}
+                </div>
+              );
+            })}
             {loading && (
               <div className="chat-bubble chat-bubble-assistant chat-loading">Thinking…</div>
             )}

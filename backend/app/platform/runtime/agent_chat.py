@@ -32,16 +32,15 @@ def build_instance_agent(
     dynamic collaborators, so there's exactly one place that turns an
     instance into a real agent.
 
-    include_report_tool is off by default and only turned on for the
-    standalone per-agent chat — the homepage supervisor's collaborators
-    don't get it. A resumed approval reliably reaches the paused pipeline
-    when the collaborator IS the top-level invoked graph (one level of
-    nesting), but not when it's a subgraph node inside the supervisor's own
-    graph (two levels of nesting) — verified live: the resume call returns
-    a normal-looking success message without ever actually finishing the
-    pipeline or writing an audit log row. Silently "succeeding" without
-    recording a decision is worse than not offering report generation
-    there at all, so it stays off until that's properly understood."""
+    include_report_tool is off by default; both the standalone per-agent
+    chat and the homepage supervisor's collaborators turn it on. This used
+    to be supervisor-only-unsafe because approval was resumed by pausing the
+    *chat's* own graph with `interrupt()` — reliable one level deep (this
+    agent's own chat) but not two levels deep (a collaborator subgraph
+    inside the supervisor's graph). generate_report no longer does that; the
+    pipeline tracks its own pending state independently of any chat's
+    graph (see report_tool.get_pending_report/submit_report_decision), so
+    there's nothing chat-nesting-depth-sensitive left to break."""
     system_prompt = DEFAULT_SYSTEM_PROMPT_TEMPLATE.format(
         display_name=instance["display_name"],
         description=instance["description"] or "No description provided.",

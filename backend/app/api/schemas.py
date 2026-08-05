@@ -74,6 +74,7 @@ class ChatRequest(BaseModel):
 
 
 class PendingApprovalOut(BaseModel):
+    agent_id: int
     report: str
     message: str
 
@@ -82,14 +83,25 @@ class ChatResponse(BaseModel):
     thread_id: str
     message: str
     routed_to: str | None = None
-    # Set instead of a normal message when the agent's chat paused mid-turn
-    # waiting on a human approve/reject decision (the chat-driven report
-    # flow) — the frontend renders this as an inline approval card rather
-    # than plain text.
+    # Set whenever the agent(s) in this chat have a report waiting on a
+    # human approve/reject decision — read directly off the report
+    # pipeline's own state (see report_tool.get_pending_report), not tied to
+    # this chat's own conversation state, so it surfaces the same way
+    # whether asked from an agent's own chat or the homepage's multi-agent
+    # one. The frontend renders this as an inline approval card rather than
+    # plain text.
     pending_approval: PendingApprovalOut | None = None
 
 
 class ChatDecisionRequest(BaseModel):
+    thread_id: str
+    decision: Literal["approved", "rejected"]
+    actor: str
+    comment: str | None = None
+
+
+class HomeChatDecisionRequest(BaseModel):
+    agent_id: int
     thread_id: str
     decision: Literal["approved", "rejected"]
     actor: str

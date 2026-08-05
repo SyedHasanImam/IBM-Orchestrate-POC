@@ -1,10 +1,14 @@
 import { useSyncExternalStore } from "react";
 
-export type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-  routedTo?: string | null;
-};
+export type ChatMessage =
+  | { role: "user" | "assistant"; content: string; routedTo?: string | null }
+  | {
+      role: "approval";
+      agentId: number;
+      report: string;
+      approvalMessage: string;
+      decision: "approved" | "rejected" | null;
+    };
 
 export interface ChatHistoryState {
   threadId: string | null;
@@ -12,6 +16,12 @@ export interface ChatHistoryState {
   input: string;
   loading: boolean;
   error: string | null;
+  // Reviewer identity for an in-flight approval card — kept alongside the
+  // rest of the chat state rather than per-message, since only one
+  // approval can realistically be pending at a time.
+  actor: string;
+  comment: string;
+  deciding: boolean;
 }
 
 const EMPTY_STATE: ChatHistoryState = {
@@ -20,6 +30,9 @@ const EMPTY_STATE: ChatHistoryState = {
   input: "",
   loading: false,
   error: null,
+  actor: "",
+  comment: "",
+  deciding: false,
 };
 
 let state: ChatHistoryState = EMPTY_STATE;

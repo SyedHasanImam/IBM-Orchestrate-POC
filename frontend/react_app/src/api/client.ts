@@ -65,6 +65,7 @@ export type DataSourceStatus = {
 export type Decision = "approved" | "rejected";
 
 export type PendingApproval = {
+  agent_id: number;
   report: string;
   message: string;
 };
@@ -81,6 +82,10 @@ export type ChatDecisionRequest = {
   decision: Decision;
   actor: string;
   comment: string | null;
+};
+
+export type HomeChatDecisionRequest = ChatDecisionRequest & {
+  agent_id: number;
 };
 
 export type ToolInfo = {
@@ -152,6 +157,12 @@ export const api = {
     request<ChatResponse>("/chat", {
       method: "POST",
       body: JSON.stringify({ message, thread_id: threadId }),
+    }),
+
+  submitChatDecision: (body: HomeChatDecisionRequest) =>
+    request<ChatResponse>("/chat/decision", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   listAgents: () => request<AgentInstance[]>("/agents"),

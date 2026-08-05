@@ -181,6 +181,60 @@
   color: var(--color-text-muted);
 }
 
+.chat-bubble-approval {
+  align-self: flex-start;
+  max-width: 94%;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-strong);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-approval-message {
+  margin: 0 0 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chat-approval-report {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.chat-approval-decision label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.chat-approval-decision input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.chat-approval-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-approval-outcome {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 .chat-error {
   color: var(--color-danger);
   font-size: 14px;
