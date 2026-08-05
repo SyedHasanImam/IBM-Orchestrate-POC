@@ -19,6 +19,7 @@ from app.platform.schema.workflow_config import (
     LlmAgentNodeConfig,
     WorkflowConfig,
 )
+from app.platform.tools.compliance_rules import make_check_compliance_limits_tool
 from app.platform.tools.exposure_summary import make_get_portfolio_exposure_summary_tool
 from app.platform.tools.fund_holdings import make_get_fund_holdings_tool
 from app.platform.tools.reconciliation import (
@@ -34,6 +35,7 @@ INSTANCE_SCOPED_TOOL_FACTORIES = {
     "search_compliance_kb": make_search_compliance_kb_tool,
     "get_fund_holdings": make_get_fund_holdings_tool,
     "get_portfolio_exposure_summary": make_get_portfolio_exposure_summary_tool,
+    "check_compliance_limits": make_check_compliance_limits_tool,
     "get_fund_ledger": make_get_fund_ledger_tool,
     "get_custodian_statement": make_get_custodian_statement_tool,
     "get_trade_blotter": make_get_trade_blotter_tool,
