@@ -179,7 +179,7 @@ export function ChatPage() {
           <h1 className="chat-welcome-title">What can I help you with?</h1>
           <p className="chat-welcome-subtitle">
             {includedAgents.length > 0
-              ? "Ask a question and it's routed to the specialist agent best suited to answer it — no need to run a full report for a quick question."
+              ? "Ask a question and it's routed to the specialist agent best suited to answer it — no need to run a full report for a quick question. Start with @AgentName to address one agent directly instead."
               : "This is a general chat for now — add an agent above to get grounded answers about your fund's actual data."}
           </p>
 
@@ -187,7 +187,7 @@ export function ChatPage() {
             <input
               type="text"
               value={input}
-              placeholder="Ask about holdings, compliance, or reconciliation…"
+              placeholder="Ask about holdings, compliance, or reconciliation… (or @AgentName to address one directly)"
               onChange={(e) => updateChatHistory({ input: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === "Enter") sendMessage(input);

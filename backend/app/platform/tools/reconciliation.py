@@ -35,10 +35,13 @@ def _read_sheet(path) -> list[dict]:
 
 @tool
 def get_fund_ledger() -> list[dict]:
-    """Retrieve the fund's internal ledger positions — the AMC's own book of
-    record. Each entry has security_id, security_name, quantity,
-    cost_basis_pkr, market_value_pkr, unrealized_gain_loss_pkr, weight_pct,
-    and book_source. Includes non-security lines like cash and receivables.
+    """Retrieve the fund's internal ledger positions — the AMC's own book
+    of record. Includes non-security lines like cash and receivables.
+
+    Returns:
+        One dict per position, each with security_id, security_name,
+        quantity, cost_basis_pkr, market_value_pkr,
+        unrealized_gain_loss_pkr, weight_pct, and book_source.
     """
     return _read_sheet(FUND_LEDGER_PATH)
 
@@ -46,10 +49,13 @@ def get_fund_ledger() -> list[dict]:
 @tool
 def get_custodian_statement() -> list[dict]:
     """Retrieve the custodian's (CDC) statement of securities actually held
-    in custody for the fund. Each entry has security_id, security_name,
-    quantity, price_per_unit_pkr, market_value_pkr, custody_source, and
-    statement_date. Only covers custodied securities — cash and receivables
-    are never listed here.
+    in custody for the fund. Only covers custodied securities — cash and
+    receivables are never listed here.
+
+    Returns:
+        One dict per custodied security, each with security_id,
+        security_name, quantity, price_per_unit_pkr, market_value_pkr,
+        custody_source, and statement_date.
     """
     return _read_sheet(CUSTODIAN_STATEMENT_PATH)
 
@@ -57,9 +63,11 @@ def get_custodian_statement() -> list[dict]:
 @tool
 def get_trade_blotter() -> list[dict]:
     """Retrieve this period's trade blotter — every buy/sell trade the fund
-    executed, with its settlement status. Each entry has trade_id,
-    trade_date, security_id, security_name, side, quantity, status, and
-    settlement_date.
+    executed, with its settlement status.
+
+    Returns:
+        One dict per trade, each with trade_id, trade_date, security_id,
+        security_name, side, quantity, status, and settlement_date.
     """
     return _read_sheet(TRADE_BLOTTER_PATH)
 
@@ -67,9 +75,12 @@ def get_trade_blotter() -> list[dict]:
 @tool
 def get_corporate_actions() -> list[dict]:
     """Retrieve this period's corporate actions calendar (dividends, bonus
-    issues, rights issues, etc.) for securities the fund holds. Each entry
-    has security_id, security_name, action_type, announcement_date,
-    books_closure_date, credit_date, and details.
+    issues, rights issues, etc.) for securities the fund holds.
+
+    Returns:
+        One dict per action, each with security_id, security_name,
+        action_type, announcement_date, books_closure_date, credit_date,
+        and details.
     """
     return _read_sheet(CORPORATE_ACTIONS_PATH)
 
@@ -88,10 +99,13 @@ def make_get_fund_ledger_tool(instance_id: int):
     @tool
     def get_fund_ledger() -> list[dict]:
         """Retrieve the fund's internal ledger positions — the AMC's own
-        book of record. Each entry has security_id, security_name,
-        quantity, cost_basis_pkr, market_value_pkr,
-        unrealized_gain_loss_pkr, weight_pct, and book_source. Includes
-        non-security lines like cash and receivables.
+        book of record. Includes non-security lines like cash and
+        receivables.
+
+        Returns:
+            One dict per position, each with security_id, security_name,
+            quantity, cost_basis_pkr, market_value_pkr,
+            unrealized_gain_loss_pkr, weight_pct, and book_source.
         """
         return _instance_reconciliation_rows(instance_id, "ledger")
 
@@ -106,10 +120,13 @@ def make_get_custodian_statement_tool(instance_id: int):
     @tool
     def get_custodian_statement() -> list[dict]:
         """Retrieve the custodian's (CDC) statement of securities actually
-        held in custody for the fund. Each entry has security_id,
-        security_name, quantity, price_per_unit_pkr, market_value_pkr,
-        custody_source, and statement_date. Only covers custodied
-        securities — cash and receivables are never listed here.
+        held in custody for the fund. Only covers custodied securities —
+        cash and receivables are never listed here.
+
+        Returns:
+            One dict per custodied security, each with security_id,
+            security_name, quantity, price_per_unit_pkr, market_value_pkr,
+            custody_source, and statement_date.
         """
         return _instance_reconciliation_rows(instance_id, "custodian_statement")
 
@@ -123,9 +140,12 @@ def make_get_trade_blotter_tool(instance_id: int):
     @tool
     def get_trade_blotter() -> list[dict]:
         """Retrieve this period's trade blotter — every buy/sell trade the
-        fund executed, with its settlement status. Each entry has
-        trade_id, trade_date, security_id, security_name, side, quantity,
-        status, and settlement_date.
+        fund executed, with its settlement status.
+
+        Returns:
+            One dict per trade, each with trade_id, trade_date,
+            security_id, security_name, side, quantity, status, and
+            settlement_date.
         """
         return _instance_reconciliation_rows(instance_id, "trade_blotter")
 
@@ -141,8 +161,11 @@ def make_get_corporate_actions_tool(instance_id: int):
     def get_corporate_actions() -> list[dict]:
         """Retrieve this period's corporate actions calendar (dividends,
         bonus issues, rights issues, etc.) for securities the fund holds.
-        Each entry has security_id, security_name, action_type,
-        announcement_date, books_closure_date, credit_date, and details.
+
+        Returns:
+            One dict per action, each with security_id, security_name,
+            action_type, announcement_date, books_closure_date,
+            credit_date, and details.
         """
         return _instance_reconciliation_rows(instance_id, "corporate_actions")
 
@@ -160,14 +183,21 @@ def make_match_positions_tool(instance_id: int):
     @tool
     def match_positions() -> dict:
         """Compare the fund's internal ledger against the custodian's
-        statement, position by position, and return every break found. For
-        each break, attempts a deterministic explanation using the trade
-        blotter (a pending settlement can explain a position missing from
-        the custodian statement) or the corporate actions calendar (a
-        bonus/split action can explain a quantity difference) — breaks
-        with no such match are 'unexplained' and need investigation. These
-        figures are computed deterministically — use them exactly as
-        given, never round, estimate, or recompute them.
+        statement, position by position. For each break, attempts a
+        deterministic explanation using the trade blotter (a pending
+        settlement can explain a position missing from the custodian
+        statement) or the corporate actions calendar (a bonus/split action
+        can explain a quantity difference) — breaks with no such match are
+        'unexplained' and need investigation. Figures are computed
+        deterministically — use them exactly as given, never round,
+        estimate, or recompute them.
+
+        Returns:
+            A dict with matched_position_count, break_count, and breaks
+            (one entry per break — security_id, security_name,
+            ledger_quantity, custodian_quantity, quantity_difference,
+            status "explained"/"unexplained", explanation_type, and
+            explanation_detail).
         """
         return compute_position_matches(
             ledger=_instance_reconciliation_rows(instance_id, "ledger"),
@@ -261,14 +291,22 @@ def compute_position_matches(
 
 @tool
 def match_positions() -> dict:
-    """Compare the fund's internal ledger against the custodian's statement,
-    position by position, and return every break found. For each break,
-    attempts a deterministic explanation using the trade blotter (a pending
-    settlement can explain a position missing from the custodian statement)
-    or the corporate actions calendar (a bonus/split action can explain a
-    quantity difference) — breaks with no such match are 'unexplained' and
-    need investigation. These figures are computed deterministically — use
-    them exactly as given, never round, estimate, or recompute them.
+    """Compare the fund's internal ledger against the custodian's
+    statement, position by position. For each break, attempts a
+    deterministic explanation using the trade blotter (a pending
+    settlement can explain a position missing from the custodian
+    statement) or the corporate actions calendar (a bonus/split action can
+    explain a quantity difference) — breaks with no such match are
+    'unexplained' and need investigation. Figures are computed
+    deterministically — use them exactly as given, never round, estimate,
+    or recompute them.
+
+    Returns:
+        A dict with matched_position_count, break_count, and breaks (one
+        entry per break — security_id, security_name, ledger_quantity,
+        custodian_quantity, quantity_difference, status
+        "explained"/"unexplained", explanation_type, and
+        explanation_detail).
     """
     return compute_position_matches(
         ledger=get_fund_ledger.invoke({}),

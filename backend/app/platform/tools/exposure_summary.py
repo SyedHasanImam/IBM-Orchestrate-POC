@@ -51,10 +51,14 @@ def compute_exposure_summary(holdings: list[dict]) -> dict:
 @tool
 def get_portfolio_exposure_summary() -> dict:
     """Compute the fund's current portfolio exposures needed for compliance
-    checks: sector totals, asset-class totals, the largest single equity
-    issuer, liquidity percentage, and equity allocation percentage. These
-    figures are computed deterministically from the fund's holdings — use
-    them exactly as given, never round, estimate, or recompute them.
+    checks. Figures are computed deterministically from the fund's
+    holdings — use them exactly as given, never round, estimate, or
+    recompute them.
+
+    Returns:
+        A dict with sector_totals, asset_class_totals,
+        largest_single_issuer, liquidity_pct, equity_allocation_pct, and
+        the raw holdings list they were computed from.
     """
     holdings = get_fund_holdings.invoke({})
     return compute_exposure_summary(holdings)
@@ -68,11 +72,14 @@ def make_get_portfolio_exposure_summary_tool(instance_id: int):
     @tool
     def get_portfolio_exposure_summary() -> dict:
         """Compute the fund's current portfolio exposures needed for
-        compliance checks: sector totals, asset-class totals, the largest
-        single equity issuer, liquidity percentage, and equity allocation
-        percentage. These figures are computed deterministically from the
+        compliance checks. Figures are computed deterministically from the
         fund's holdings — use them exactly as given, never round, estimate,
         or recompute them.
+
+        Returns:
+            A dict with sector_totals, asset_class_totals,
+            largest_single_issuer, liquidity_pct, equity_allocation_pct,
+            and the raw holdings list they were computed from.
         """
         instance = get_instance(instance_id)
         holdings = (instance and instance.get("holdings_snapshot")) or []

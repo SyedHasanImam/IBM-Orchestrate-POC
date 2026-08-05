@@ -108,6 +108,15 @@ class HomeChatDecisionRequest(BaseModel):
     comment: str | None = None
 
 
+class LlmConfig(BaseModel):
+    """Optional per-agent model overrides (the Behavior tab's "Model
+    settings") — real watsonx Orchestrate concept, left empty by default
+    so an agent just uses its template's plain model with no override."""
+
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+
 class AgentInstance(BaseModel):
     id: int
     template_name: str
@@ -117,6 +126,7 @@ class AgentInstance(BaseModel):
     status: Literal["draft", "deployed"]
     included_in_chat: bool = False
     extra_tools: list[str] = []
+    llm_config: LlmConfig = LlmConfig()
     created_at: datetime
     updated_at: datetime
 
@@ -133,6 +143,7 @@ class UpdateAgentInstanceRequest(BaseModel):
     instructions: str | None = None
     included_in_chat: bool | None = None
     extra_tools: list[str] | None = None
+    llm_config: LlmConfig | None = None
 
 
 class AgentDocument(BaseModel):

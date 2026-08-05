@@ -24,10 +24,18 @@ def search_compliance_kb(query: str) -> list[dict]:
     """Search the fund's compliance knowledge base — the investment mandate
     (trust deed clauses on exposure limits, Shariah restrictions, liquidity,
     and equity allocation) and SECP regulatory excerpts — for text relevant
-    to a compliance question. Returns the matching clause/excerpt title,
-    source document, full text, and effective date (if known) for each
-    result, so findings can be cited accurately — check effective_date
-    before treating a result as current.
+    to a compliance question.
+
+    Args:
+        query: The compliance question or topic to search for, in plain
+            language (e.g. "single sector exposure limit").
+
+    Returns:
+        Up to 3 matching results, each with title (the clause/excerpt
+        title), source (the document it came from), text (the full
+        clause/excerpt text), and effective_date (if known — check this
+        before treating a result as current) so findings can be cited
+        accurately.
     """
     return _search(get_compliance_vector_store(), query)
 
@@ -44,11 +52,18 @@ def make_search_compliance_kb_tool(instance_id: int):
         """Search the fund's compliance knowledge base — the investment
         mandate (trust deed clauses on exposure limits, Shariah
         restrictions, liquidity, and equity allocation) and SECP regulatory
-        excerpts — for text relevant to a compliance question. Returns the
-        matching clause/excerpt title, source document, full text, and
-        effective date (if known) for each result, so findings can be
-        cited accurately — check effective_date before treating a result
-        as current.
+        excerpts — for text relevant to a compliance question.
+
+        Args:
+            query: The compliance question or topic to search for, in
+                plain language (e.g. "single sector exposure limit").
+
+        Returns:
+            Up to 3 matching results, each with title (the clause/excerpt
+            title), source (the document it came from), text (the full
+            clause/excerpt text), and effective_date (if known — check
+            this before treating a result as current) so findings can be
+            cited accurately.
         """
         return _search(vector_store, query)
 

@@ -92,6 +92,15 @@ ALTER TABLE agent_instances
     ADD COLUMN IF NOT EXISTS extra_tools TEXT[] NOT NULL DEFAULT '{}';
 """
 
+# Optional per-agent temperature/max_tokens overrides (the Behavior tab's
+# "Model settings") — a real IBM Orchestrate concept, empty by default so
+# every existing agent keeps using the template's plain model with no
+# override at all.
+AGENT_INSTANCES_LLM_CONFIG_COLUMN_DDL = """
+ALTER TABLE agent_instances
+    ADD COLUMN IF NOT EXISTS llm_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+"""
+
 
 def ensure_instances_schema() -> None:
     """Create the agent_instances/agent_instance_documents tables (and add
@@ -110,4 +119,5 @@ def ensure_instances_schema() -> None:
             cur.execute(AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_CHAT_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_EXTRA_TOOLS_COLUMN_DDL)
+            cur.execute(AGENT_INSTANCES_LLM_CONFIG_COLUMN_DDL)
         conn.commit()

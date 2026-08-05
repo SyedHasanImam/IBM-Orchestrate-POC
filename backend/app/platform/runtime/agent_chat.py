@@ -3,7 +3,7 @@ from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from app.core.config import LLM_MAX_RETRIES, LLM_TIMEOUT_SECONDS, settings
-from app.platform.runtime.factory import resolve_tool
+from app.platform.runtime.factory import llm_model_kwargs, resolve_tool
 from app.platform.runtime.report_tool import make_generate_report_tool, workflow_has_approval_gate
 from app.platform.schema.workflow_config import WorkflowConfig
 
@@ -53,7 +53,10 @@ def build_instance_agent(
     if instructions:
         system_prompt = f"{system_prompt}\n\n{instructions}"
     model = init_chat_model(
-        settings.compliance_model, timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES
+        settings.compliance_model,
+        timeout=LLM_TIMEOUT_SECONDS,
+        max_retries=LLM_MAX_RETRIES,
+        **llm_model_kwargs(instance.get("llm_config")),
     )
     # Union with the user-added extras (the Toolset tab's "Add tool") — the
     # template's own tools are the fixed base set; extra_tools lets the user

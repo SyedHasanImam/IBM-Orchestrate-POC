@@ -31,6 +31,8 @@ export function AgentEditorPage() {
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [maxTokens, setMaxTokens] = useState("");
   const [saving, setSaving] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -43,8 +45,17 @@ export function AgentEditorPage() {
       setDisplayName(data.display_name);
       setDescription(data.description);
       setInstructions(data.instructions ?? "");
+      setTemperature(data.llm_config.temperature?.toString() ?? "");
+      setMaxTokens(data.llm_config.max_tokens?.toString() ?? "");
     });
   }, [agentId]);
+
+  function currentLlmConfig() {
+    return {
+      temperature: temperature.trim() === "" ? null : Number(temperature),
+      max_tokens: maxTokens.trim() === "" ? null : Number(maxTokens),
+    };
+  }
 
   async function handleSave() {
     if (!agent) return;
@@ -55,6 +66,7 @@ export function AgentEditorPage() {
         display_name: displayName,
         description,
         instructions,
+        llm_config: currentLlmConfig(),
       });
       setAgent(updated);
       if (updated.status === "deployed") notifyAgentsChanged();
@@ -75,6 +87,7 @@ export function AgentEditorPage() {
         display_name: displayName,
         description,
         instructions,
+        llm_config: currentLlmConfig(),
       });
       await api.deployAgent(updated.id);
       notifyAgentsChanged();
@@ -161,6 +174,13 @@ export function AgentEditorPage() {
                     onChange={(e) => setDisplayName(e.target.value)}
                   />
                 </label>
+                <p className="agent-editor-hint">
+                  This is what the homepage chat's routing reads to decide whether a
+                  question goes to this agent — mention its specific tools and data (e.g.
+                  "checks single-issuer and sector exposure limits using the fund's
+                  holdings"), not just its general domain, so routing and search can match
+                  on more than a vague topic label.
+                </p>
                 <label>
                   Description
                   <textarea
@@ -195,6 +215,35 @@ export function AgentEditorPage() {
                     placeholder={INSTRUCTIONS_PLACEHOLDER}
                   />
                 </label>
+
+                <p className="agent-editor-hint agent-editor-model-settings-hint">
+                  Model settings — optional overrides for this agent's answers. Leave
+                  blank to use the template's plain model with no override.
+                </p>
+                <div className="agent-editor-model-settings-row">
+                  <label>
+                    Temperature (0–2)
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="2"
+                      value={temperature}
+                      onChange={(e) => setTemperature(e.target.value)}
+                      placeholder="default"
+                    />
+                  </label>
+                  <label>
+                    Max tokens
+                    <input
+                      type="number"
+                      min="1"
+                      value={maxTokens}
+                      onChange={(e) => setMaxTokens(e.target.value)}
+                      placeholder="default"
+                    />
+                  </label>
+                </div>
               </div>
             )}
 

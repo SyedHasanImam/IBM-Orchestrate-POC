@@ -77,6 +77,7 @@ from app.platform.runtime.supervisor import (
     collaborator_name,
     extract_final_answer,
     extract_routed_to,
+    resolve_mention,
 )
 from app.platform.tools.data_sources import required_data_sources
 from app.platform.tools.registry import TOOL_REGISTRY
@@ -552,6 +553,43 @@ def chat(body: ChatRequest) -> ChatResponse:
         for row in list_instances()
         if row["status"] == "deployed" and row.get("included_in_chat")
     ]
+
+    # "@AgentName ..." addresses that one included agent directly instead
+    # of leaving it to the supervisor's routing guess (see
+    # supervisor.resolve_mention) — a cheaper alternative to a fixed
+    # collaborator roster. Runs that agent's own standalone chat (same as
+    # its own page), on a thread scoped to this chat + that agent, so an
+    # explicit mention never depends on — or gets overridden by — the
+    # supervisor's own judgment.
+    mentioned_instance, mention_message = resolve_mention(body.message, selected_instances)
+    if mentioned_instance is not None:
+        workflow_config = app.state.workflow_configs[mentioned_instance["template_name"]]
+        agent = build_agent_preview_chat(mentioned_instance, workflow_config, app.state.checkpointer)
+        mention_config = {
+            "configurable": {"thread_id": f"{thread_id}::mention::{mentioned_instance['id']}"},
+            "run_name": "chat-mention",
+            "callbacks": [get_langfuse_handler()],
+        }
+        before_count = len(agent.get_state(mention_config).values.get("messages", []))
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=mention_message)]}, config=mention_config
+        )
+        if _generate_report_called(result["messages"][before_count:]):
+            pending = get_pending_report(
+                mentioned_instance["id"], workflow_config, app.state.checkpointer
+            )
+            if pending:
+                return ChatResponse(
+                    thread_id=thread_id,
+                    message="",
+                    pending_approval=PendingApprovalOut(agent_id=mentioned_instance["id"], **pending),
+                )
+        return ChatResponse(
+            thread_id=thread_id,
+            message=extract_text(result["messages"][-1]),
+            routed_to=mentioned_instance["display_name"],
+        )
+
     supervisor = build_chat_supervisor(
         selected_instances, app.state.workflow_configs, app.state.checkpointer
     )

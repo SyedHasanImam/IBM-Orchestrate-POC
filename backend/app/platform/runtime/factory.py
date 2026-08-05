@@ -12,6 +12,7 @@ from app.core.config import LLM_MAX_RETRIES, LLM_TIMEOUT_SECONDS, settings
 from app.core.messages import extract_text
 from app.core.observability import get_langfuse_handler
 from app.platform.audit.log import record_report_decision
+from app.platform.instances.store import get_instance
 from app.platform.rag.retrieval import make_search_compliance_kb_tool
 from app.platform.schema.workflow_config import (
     ApprovalGateNodeConfig,
@@ -48,6 +49,24 @@ def _invoke_config(run_name: str) -> dict:
     return {"run_name": run_name, "callbacks": [get_langfuse_handler()]}
 
 
+def llm_model_kwargs(llm_config: dict | None) -> dict:
+    """Turn an instance's optional llm_config (temperature/max_tokens
+    overrides, the Behavior tab's "Model settings") into init_chat_model
+    kwargs — only the keys actually set, so an agent with no overrides
+    keeps using its template's plain model exactly as before. Shared by
+    both this module's pipeline-node agents and agent_chat.py's per-
+    instance chat agent, so an override applies consistently everywhere
+    that agent answers from."""
+    if not llm_config:
+        return {}
+    kwargs = {}
+    if llm_config.get("temperature") is not None:
+        kwargs["temperature"] = llm_config["temperature"]
+    if llm_config.get("max_tokens") is not None:
+        kwargs["max_tokens"] = llm_config["max_tokens"]
+    return kwargs
+
+
 def resolve_tool(tool_name: str, instance_id: int | None):
     """Several tools need to operate on one specific agent instance's own
     data — its Knowledge documents, its uploaded holdings/reconciliation
@@ -77,8 +96,12 @@ def build_agent_from_config(
     """
     model_name = getattr(settings, node.model)
     tools = [resolve_tool(tool_name, instance_id) for tool_name in node.tools]
+    instance = get_instance(instance_id) if instance_id is not None else None
     model = init_chat_model(
-        model_name, timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES
+        model_name,
+        timeout=LLM_TIMEOUT_SECONDS,
+        max_retries=LLM_MAX_RETRIES,
+        **llm_model_kwargs(instance.get("llm_config") if instance else None),
     )
     return create_agent(
         model,

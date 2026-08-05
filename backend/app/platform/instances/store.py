@@ -50,20 +50,35 @@ UPDATABLE_FIELDS = {
     "instructions",
     "included_in_chat",
     "extra_tools",
+    "llm_config",
 }
+
+# Fields that need an explicit ::jsonb cast + json.dumps rather than a plain
+# placeholder — psycopg doesn't auto-adapt a Python dict to Postgres jsonb.
+JSONB_FIELDS = {"llm_config"}
 
 
 def update_instance(instance_id: int, **fields) -> dict | None:
     """Patch whichever of display_name/description/instructions/
-    included_in_chat/extra_tools were actually provided. Returns None if the
-    instance doesn't exist."""
+    included_in_chat/extra_tools/llm_config were actually provided. Returns
+    None if the instance doesn't exist."""
     if not fields:
         return get_instance(instance_id)
     unknown = fields.keys() - UPDATABLE_FIELDS
     if unknown:
         raise ValueError(f"Cannot update fields: {sorted(unknown)}")
 
-    set_clause = ", ".join(f"{key} = %s" for key in fields)
+    set_parts = []
+    values = []
+    for key, value in fields.items():
+        if key in JSONB_FIELDS:
+            set_parts.append(f"{key} = %s::jsonb")
+            values.append(json.dumps(value))
+        else:
+            set_parts.append(f"{key} = %s")
+            values.append(value)
+    set_clause = ", ".join(set_parts)
+
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -73,7 +88,7 @@ def update_instance(instance_id: int, **fields) -> dict | None:
                 WHERE id = %s
                 RETURNING *;
                 """,
-                (*fields.values(), instance_id),
+                (*values, instance_id),
             )
             row = cur.fetchone()
         conn.commit()

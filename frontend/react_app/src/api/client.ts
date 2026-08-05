@@ -93,6 +93,11 @@ export type ToolInfo = {
   description: string;
 };
 
+export type LlmConfig = {
+  temperature: number | null;
+  max_tokens: number | null;
+};
+
 export type AgentInstance = {
   id: number;
   template_name: string;
@@ -102,6 +107,7 @@ export type AgentInstance = {
   status: "draft" | "deployed";
   included_in_chat: boolean;
   extra_tools: string[];
+  llm_config: LlmConfig;
   created_at: string;
   updated_at: string;
 };
@@ -111,6 +117,7 @@ export type UpdateAgentInstanceRequest = {
   description?: string;
   instructions?: string;
   included_in_chat?: boolean;
+  llm_config?: LlmConfig;
   extra_tools?: string[];
 };
 

@@ -1,3 +1,5 @@
+import re
+
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -29,6 +31,48 @@ def collaborator_name(instance_id: int) -> str:
     """The internal handoff-routing name for one instance's collaborator
     agent — stable and identifier-safe, unlike its free-text display_name."""
     return f"agent_{instance_id}"
+
+
+MENTION_PATTERN = re.compile(r"^@(\S+)\s*(.*)$", re.DOTALL)
+
+
+def _normalize_mention(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def resolve_mention(message: str, instances: list[dict]) -> tuple[dict | None, str]:
+    """A cheaper alternative to the full "Add Agent" fixed-collaborator
+    roster: within the homepage's shared chat, a message starting with
+    "@SomeAgentName ..." addresses that one specific included agent
+    directly instead of leaving every message to the supervisor's own
+    routing guess — matching real watsonx Orchestrate's per-message
+    assistant_id/mentions concept.
+
+    Matches the mention token against each candidate's display_name,
+    case- and punctuation-insensitively (so "@compliance" matches
+    "Compliance report "). Returns (that instance, the message with the
+    mention stripped) only when exactly one instance matches and there's
+    still a real question left after the mention — an ambiguous, no-match,
+    or mention-only message falls back to (None, message unchanged) so the
+    supervisor's normal auto-routing takes over exactly as if no @ were
+    typed, rather than guessing which agent was meant."""
+    match = MENTION_PATTERN.match(message.strip())
+    if not match:
+        return None, message
+    token, rest = match.group(1), match.group(2)
+    if not rest.strip():
+        return None, message
+    normalized_token = _normalize_mention(token)
+    if not normalized_token:
+        return None, message
+    candidates = [
+        instance
+        for instance in instances
+        if normalized_token in _normalize_mention(instance["display_name"])
+    ]
+    if len(candidates) == 1:
+        return candidates[0], rest
+    return None, message
 
 
 def _routing_prompt(instances: list[dict]) -> str:

@@ -155,12 +155,16 @@ def compute_compliance_checks(exposure_summary: dict) -> dict:
 def check_compliance_limits() -> dict:
     """Check the fund's current portfolio exposures against the Investment
     Mandate's five compliance limits (single-issuer, single-sector, Shariah
-    compliance, minimum liquidity, minimum equity allocation) and return the
-    exact figure, limit, BREACH/PASS status, and clause citation for each —
-    all computed deterministically in code. Use this as the sole source for
+    compliance, minimum liquidity, minimum equity allocation) — all
+    computed deterministically in code. Use this as the sole source for
     BREACH/PASS determinations and citations when drafting the compliance
     report; never judge or recompute a verdict yourself from retrieved
     mandate text.
+
+    Returns:
+        A dict with "checks" (one entry per limit — check name, figure_pct,
+        limit_pct, limit_type, status "BREACH"/"PASS", citation, and a
+        human-readable detail) and "breach_count".
     """
     holdings = get_fund_holdings.invoke({})
     return compute_compliance_checks(compute_exposure_summary(holdings))
@@ -176,12 +180,15 @@ def make_check_compliance_limits_tool(instance_id: int):
         """Check the fund's current portfolio exposures against the
         Investment Mandate's five compliance limits (single-issuer,
         single-sector, Shariah compliance, minimum liquidity, minimum
-        equity allocation) and return the exact figure, limit, BREACH/PASS
-        status, and clause citation for each — all computed
-        deterministically in code. Use this as the sole source for
-        BREACH/PASS determinations and citations when drafting the
-        compliance report; never judge or recompute a verdict yourself
-        from retrieved mandate text.
+        equity allocation) — all computed deterministically in code. Use
+        this as the sole source for BREACH/PASS determinations and
+        citations when drafting the compliance report; never judge or
+        recompute a verdict yourself from retrieved mandate text.
+
+        Returns:
+            A dict with "checks" (one entry per limit — check name,
+            figure_pct, limit_pct, limit_type, status "BREACH"/"PASS",
+            citation, and a human-readable detail) and "breach_count".
         """
         exposure_summary = make_get_portfolio_exposure_summary_tool(instance_id).invoke({})
         return compute_compliance_checks(exposure_summary)

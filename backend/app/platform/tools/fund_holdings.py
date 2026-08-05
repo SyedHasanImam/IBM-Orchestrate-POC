@@ -11,10 +11,11 @@ FUND_HOLDINGS_PATH = DATA_DIR / "mock" / "fund_holdings" / "fund_holdings_datase
 def get_fund_holdings() -> list[dict]:
     """Retrieve the fund's current portfolio holdings.
 
-    Returns one entry per position (including cash and other assets), each
-    with: security_id, security_name, issuer, sector, asset_class, quantity,
-    price_per_unit_pkr, market_value_pkr, and weight_pct (percentage of the
-    fund's net assets).
+    Returns:
+        One dict per position (including cash and other assets), each with
+        security_id, security_name, issuer, sector, asset_class, quantity,
+        price_per_unit_pkr, market_value_pkr, and weight_pct (percentage of
+        the fund's net assets).
     """
     workbook = openpyxl.load_workbook(FUND_HOLDINGS_PATH, data_only=True)
     sheet = workbook.active
@@ -37,10 +38,11 @@ def make_get_fund_holdings_tool(instance_id: int):
     def get_fund_holdings() -> list[dict]:
         """Retrieve the fund's current portfolio holdings.
 
-        Returns one entry per position (including cash and other assets),
-        each with: security_id, security_name, issuer, sector, asset_class,
-        quantity, price_per_unit_pkr, market_value_pkr, and weight_pct
-        (percentage of the fund's net assets).
+        Returns:
+            One dict per position (including cash and other assets), each
+            with security_id, security_name, issuer, sector, asset_class,
+            quantity, price_per_unit_pkr, market_value_pkr, and weight_pct
+            (percentage of the fund's net assets).
         """
         instance = get_instance(instance_id)
         return (instance and instance.get("holdings_snapshot")) or []
