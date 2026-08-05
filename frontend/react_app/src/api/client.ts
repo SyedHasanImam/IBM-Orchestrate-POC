@@ -120,6 +120,7 @@ export type AgentDocument = {
   filename: string;
   chunk_count: number;
   created_at: string;
+  effective_date: string | null;
 };
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -193,9 +194,10 @@ export const api = {
 
   listDocuments: (agentId: number) => request<AgentDocument[]>(`/agents/${agentId}/documents`),
 
-  uploadDocument: (agentId: number, file: File) => {
+  uploadDocument: (agentId: number, file: File, effectiveDate?: string) => {
     const formData = new FormData();
     formData.append("file", file);
+    if (effectiveDate) formData.append("effective_date", effectiveDate);
     return requestFormData<AgentDocument>(`/agents/${agentId}/documents`, formData);
   },
 

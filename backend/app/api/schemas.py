@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -141,3 +141,4 @@ class AgentDocument(BaseModel):
     filename: str
     chunk_count: int
     created_at: datetime
+    effective_date: date | None = None

@@ -12,6 +12,7 @@ export function KnowledgeTab({ agentId }: { agentId: number }) {
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [effectiveDate, setEffectiveDate] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function loadDocuments() {
@@ -33,9 +34,10 @@ export function KnowledgeTab({ agentId }: { agentId: number }) {
     setUploading(true);
     setError(null);
     try {
-      const document = await api.uploadDocument(agentId, file);
-      setDocuments((prev) => [...prev, document]);
+      const document = await api.uploadDocument(agentId, file, effectiveDate || undefined);
+      setDocuments((prev) => [...prev.filter((d) => d.filename !== document.filename), document]);
       toast.success(`"${document.filename}" attached.`);
+      setEffectiveDate("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload document.");
     } finally {
@@ -86,6 +88,7 @@ export function KnowledgeTab({ agentId }: { agentId: number }) {
                   <span className="knowledge-tab-meta">
                     {doc.chunk_count} chunk{doc.chunk_count === 1 ? "" : "s"} · added{" "}
                     {new Date(doc.created_at).toLocaleString()}
+                    {doc.effective_date && ` · effective ${doc.effective_date}`}
                   </span>
                 </div>
               </div>
@@ -103,17 +106,33 @@ export function KnowledgeTab({ agentId }: { agentId: number }) {
         </ul>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".md,.txt"
-        onChange={handleFileSelected}
-        style={{ display: "none" }}
-      />
-      <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-        <Upload size={15} />
-        {uploading ? "Uploading…" : "Upload document (.md, .txt)"}
-      </Button>
+      <div className="knowledge-tab-upload-row">
+        <label className="knowledge-tab-effective-date-label">
+          Effective date (optional)
+          <input
+            type="date"
+            value={effectiveDate}
+            onChange={(e) => setEffectiveDate(e.target.value)}
+            disabled={uploading}
+          />
+        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".md,.txt"
+          onChange={handleFileSelected}
+          style={{ display: "none" }}
+        />
+        <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          <Upload size={15} />
+          {uploading ? "Uploading…" : "Upload document (.md, .txt)"}
+        </Button>
+      </div>
+      <p className="knowledge-tab-hint">
+        Set the date this document's content takes effect (e.g. a mandate revision
+        date) so a stale clause can be told apart from a current one. Re-uploading
+        the same filename replaces its prior version.
+      </p>
     </div>
   );
 }

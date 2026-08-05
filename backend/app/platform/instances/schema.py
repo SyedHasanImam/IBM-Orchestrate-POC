@@ -45,6 +45,16 @@ CREATE TABLE IF NOT EXISTS agent_instance_documents (
 );
 """
 
+# Optional — the date this document's content is effective as of (e.g. a
+# mandate revision date), as distinct from created_at (when it happened to
+# be uploaded to this platform). Without this, a stale regulatory clause
+# looks identical to a current one to both the retrieval tool and whoever
+# reads its citation.
+AGENT_INSTANCE_DOCUMENTS_EFFECTIVE_DATE_DDL = """
+ALTER TABLE agent_instance_documents
+    ADD COLUMN IF NOT EXISTS effective_date DATE;
+"""
+
 # A holdings snapshot is attached to the agent itself (like Knowledge), not
 # per report run — one snapshot per instance, replaced on re-upload rather
 # than accumulated like documents.
@@ -95,6 +105,7 @@ def ensure_instances_schema() -> None:
             cur.execute(AGENT_INSTANCES_DDL)
             cur.execute(AGENT_INSTANCES_RENAME_INSTRUCTIONS_DDL)
             cur.execute(AGENT_INSTANCE_DOCUMENTS_DDL)
+            cur.execute(AGENT_INSTANCE_DOCUMENTS_EFFECTIVE_DATE_DDL)
             cur.execute(AGENT_INSTANCES_HOLDINGS_COLUMNS_DDL)
             cur.execute(AGENT_INSTANCES_RECONCILIATION_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_CHAT_COLUMN_DDL)

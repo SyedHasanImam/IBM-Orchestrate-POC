@@ -1,8 +1,9 @@
 import uuid
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -421,7 +422,9 @@ SUPPORTED_DOCUMENT_EXTENSIONS = (".md", ".txt")
 
 
 @app.post("/agents/{agent_id}/documents", response_model=AgentDocument)
-async def upload_agent_document(agent_id: int, file: UploadFile) -> AgentDocument:
+async def upload_agent_document(
+    agent_id: int, file: UploadFile, effective_date: str | None = Form(None)
+) -> AgentDocument:
     _get_agent_or_404(agent_id)
     filename = file.filename or "untitled.txt"
     if not filename.lower().endswith(SUPPORTED_DOCUMENT_EXTENSIONS):
@@ -429,15 +432,34 @@ async def upload_agent_document(agent_id: int, file: UploadFile) -> AgentDocumen
             status_code=400,
             detail=f"Unsupported file type — knowledge documents must be one of {SUPPORTED_DOCUMENT_EXTENSIONS}.",
         )
+    if effective_date:
+        try:
+            date.fromisoformat(effective_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="effective_date must be an ISO date (YYYY-MM-DD)."
+            )
     raw = await file.read()
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="File must be UTF-8 text.")
 
-    chunk_ids = ingest_document_for_instance(agent_id, filename, text)
+    # Re-uploading the same filename supersedes the prior version rather
+    # than leaving both versions' chunks coexisting in the vector store —
+    # otherwise a stale and a current version of the same document could
+    # both surface from the same search_compliance_kb query.
+    existing = instance_documents.find_document_by_filename(agent_id, filename)
+    if existing is not None:
+        instance_documents.delete_document(existing["id"])
+        delete_document_from_instance(agent_id, existing["chunk_ids"])
+
+    chunk_ids = ingest_document_for_instance(agent_id, filename, text, effective_date)
     row = instance_documents.create_document(
-        instance_id=agent_id, filename=filename, chunk_ids=chunk_ids
+        instance_id=agent_id,
+        filename=filename,
+        chunk_ids=chunk_ids,
+        effective_date=effective_date,
     )
     return AgentDocument(**row)
 

@@ -10,6 +10,10 @@ def _search(vector_store, query: str) -> list[dict]:
             "title": doc.metadata["title"],
             "source": doc.metadata["source"],
             "text": doc.page_content,
+            # Only set for documents uploaded with an effective date — lets
+            # a citation be checked against how current it actually is,
+            # rather than only when it happened to be uploaded.
+            "effective_date": doc.metadata.get("effective_date"),
         }
         for doc in results
     ]
@@ -21,8 +25,9 @@ def search_compliance_kb(query: str) -> list[dict]:
     (trust deed clauses on exposure limits, Shariah restrictions, liquidity,
     and equity allocation) and SECP regulatory excerpts — for text relevant
     to a compliance question. Returns the matching clause/excerpt title,
-    source document, and full text for each result, so findings can be
-    cited accurately.
+    source document, full text, and effective date (if known) for each
+    result, so findings can be cited accurately — check effective_date
+    before treating a result as current.
     """
     return _search(get_compliance_vector_store(), query)
 
@@ -40,8 +45,10 @@ def make_search_compliance_kb_tool(instance_id: int):
         mandate (trust deed clauses on exposure limits, Shariah
         restrictions, liquidity, and equity allocation) and SECP regulatory
         excerpts — for text relevant to a compliance question. Returns the
-        matching clause/excerpt title, source document, and full text for
-        each result, so findings can be cited accurately.
+        matching clause/excerpt title, source document, full text, and
+        effective date (if known) for each result, so findings can be
+        cited accurately — check effective_date before treating a result
+        as current.
         """
         return _search(vector_store, query)
 

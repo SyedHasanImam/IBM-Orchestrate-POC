@@ -73,12 +73,20 @@ def get_instance_vector_store(instance_id: int) -> Chroma:
     )
 
 
-def ingest_document_for_instance(instance_id: int, filename: str, text: str) -> list[str]:
+def ingest_document_for_instance(
+    instance_id: int, filename: str, text: str, effective_date: str | None = None
+) -> list[str]:
     """Chunk and embed one uploaded document into an instance's collection.
-    Returns the chunk ids that were written, so the caller can persist them
-    for later deletion."""
+    effective_date (if given) is stamped onto every chunk's metadata so
+    search_compliance_kb can surface it alongside a citation — otherwise a
+    stale regulatory clause looks identical to a current one. Returns the
+    chunk ids that were written, so the caller can persist them for later
+    deletion."""
     vector_store = get_instance_vector_store(instance_id)
     documents = chunk_text(filename, text)
+    if effective_date:
+        for doc in documents:
+            doc.metadata["effective_date"] = effective_date
     ids = [f"{filename}::{doc.metadata['title']}" for doc in documents]
     vector_store.add_documents(documents, ids=ids)
     return ids

@@ -13,22 +13,40 @@ def _connect():
 
 
 def create_document(
-    *, instance_id: int, filename: str, chunk_ids: list[str]
+    *,
+    instance_id: int,
+    filename: str,
+    chunk_ids: list[str],
+    effective_date: str | None = None,
 ) -> dict:
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO agent_instance_documents
-                    (instance_id, filename, chunk_count, chunk_ids)
-                VALUES (%s, %s, %s, %s)
+                    (instance_id, filename, chunk_count, chunk_ids, effective_date)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING *;
                 """,
-                (instance_id, filename, len(chunk_ids), chunk_ids),
+                (instance_id, filename, len(chunk_ids), chunk_ids, effective_date),
             )
             row = cur.fetchone()
         conn.commit()
     return row
+
+
+def find_document_by_filename(instance_id: int, filename: str) -> dict | None:
+    """Look up this instance's existing document with the same filename, if
+    any — used to supersede the old version on re-upload rather than
+    leaving both versions' chunks coexisting in the vector store."""
+    with _connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM agent_instance_documents "
+                "WHERE instance_id = %s AND filename = %s;",
+                (instance_id, filename),
+            )
+            return cur.fetchone()
 
 
 def list_documents(instance_id: int) -> list[dict]:
