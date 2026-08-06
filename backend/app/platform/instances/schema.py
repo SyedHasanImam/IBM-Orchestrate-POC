@@ -101,6 +101,16 @@ ALTER TABLE agent_instances
     ADD COLUMN IF NOT EXISTS llm_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 """
 
+# Other deployed instances this agent can hand a question off to as a fixed,
+# build-time roster (the Toolset tab's "Add agent") — distinct from the
+# homepage chat's "Manage agents" picker, which is a runtime, per-session
+# choice. Empty by default so an agent behaves exactly as before until
+# collaborators are actually added.
+AGENT_INSTANCES_COLLABORATOR_IDS_COLUMN_DDL = """
+ALTER TABLE agent_instances
+    ADD COLUMN IF NOT EXISTS collaborator_ids INTEGER[] NOT NULL DEFAULT '{}';
+"""
+
 
 def ensure_instances_schema() -> None:
     """Create the agent_instances/agent_instance_documents tables (and add
@@ -120,4 +130,5 @@ def ensure_instances_schema() -> None:
             cur.execute(AGENT_INSTANCES_CHAT_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_EXTRA_TOOLS_COLUMN_DDL)
             cur.execute(AGENT_INSTANCES_LLM_CONFIG_COLUMN_DDL)
+            cur.execute(AGENT_INSTANCES_COLLABORATOR_IDS_COLUMN_DDL)
         conn.commit()

@@ -1,9 +1,14 @@
 import { useSyncExternalStore } from "react";
 
 export type AgentChatMessage =
-  | { role: "user" | "assistant"; content: string }
+  | { role: "user" | "assistant"; content: string; routedTo?: string | null }
   | {
       role: "approval";
+      // Which instance this pending report actually belongs to — usually
+      // this agent itself, but may be an Add Agent collaborator that
+      // handled the turn instead. Needed to submit the decision against
+      // the right instance.
+      agentId: number;
       report: string;
       approvalMessage: string;
       decision: "approved" | "rejected" | null;

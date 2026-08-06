@@ -51,6 +51,7 @@ UPDATABLE_FIELDS = {
     "included_in_chat",
     "extra_tools",
     "llm_config",
+    "collaborator_ids",
 }
 
 # Fields that need an explicit ::jsonb cast + json.dumps rather than a plain

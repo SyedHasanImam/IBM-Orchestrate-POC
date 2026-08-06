@@ -98,6 +98,13 @@ class ChatDecisionRequest(BaseModel):
     decision: Literal["approved", "rejected"]
     actor: str
     comment: str | None = None
+    # Which instance's pending report this decision applies to — needed
+    # once an agent has Add Agent collaborators, since the report being
+    # decided might belong to a collaborator that answered on this agent's
+    # own chat, not this endpoint's own URL agent_id. Defaults to the URL's
+    # agent_id when omitted, so existing (collaborator-less) callers are
+    # unaffected.
+    agent_id: int | None = None
 
 
 class HomeChatDecisionRequest(BaseModel):
@@ -127,6 +134,7 @@ class AgentInstance(BaseModel):
     included_in_chat: bool = False
     extra_tools: list[str] = []
     llm_config: LlmConfig = LlmConfig()
+    collaborator_ids: list[int] = []
     created_at: datetime
     updated_at: datetime
 
@@ -143,6 +151,7 @@ class UpdateAgentInstanceRequest(BaseModel):
     instructions: str | None = None
     included_in_chat: bool | None = None
     extra_tools: list[str] | None = None
+    collaborator_ids: list[int] | None = None
     llm_config: LlmConfig | None = None
 
 

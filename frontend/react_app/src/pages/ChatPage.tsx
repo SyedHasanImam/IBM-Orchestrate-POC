@@ -51,6 +51,23 @@ const NO_AGENT_SUGGESTIONS = [
 
 const MAX_SUGGESTIONS = 4;
 
+// Mirrors the backend's supervisor.resolve_mention matching exactly (same
+// normalization, same "only a leading, still-being-typed @token" trigger)
+// so a suggestion shown here is guaranteed to actually route there —
+// never offer a suggestion the backend wouldn't honor.
+const MENTION_QUERY_PATTERN = /^@(\S*)$/;
+
+function normalizeMention(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function mentionSuggestionsFor(input: string, agents: AgentInstance[]): AgentInstance[] {
+  const match = input.match(MENTION_QUERY_PATTERN);
+  if (!match) return [];
+  const query = normalizeMention(match[1]);
+  return agents.filter((agent) => normalizeMention(agent.display_name).includes(query));
+}
+
 function suggestionsFor(agents: AgentInstance[]): string[] {
   if (agents.length === 0) return NO_AGENT_SUGGESTIONS;
 
@@ -85,6 +102,14 @@ export function ChatPage() {
   }, []);
 
   const suggestions = useMemo(() => suggestionsFor(includedAgents), [includedAgents]);
+  const mentionSuggestions = useMemo(
+    () => mentionSuggestionsFor(input, includedAgents),
+    [input, includedAgents],
+  );
+
+  function selectMention(agent: AgentInstance) {
+    updateChatHistory({ input: `@${agent.display_name.trim()} ` });
+  }
 
   async function sendMessage(question: string) {
     if (!question.trim()) return;
@@ -183,27 +208,44 @@ export function ChatPage() {
               : "This is a general chat for now — add an agent above to get grounded answers about your fund's actual data."}
           </p>
 
-          <div className="chat-input-row chat-input-row-hero">
-            <input
-              type="text"
-              value={input}
-              placeholder="Ask about holdings, compliance, or reconciliation… (or @AgentName to address one directly)"
-              onChange={(e) => updateChatHistory({ input: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") sendMessage(input);
-              }}
-              disabled={loading}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="chat-send"
-              onClick={() => sendMessage(input)}
-              disabled={loading || !input.trim()}
-              aria-label="Send"
-            >
-              <ArrowUp size={18} />
-            </button>
+          <div className="chat-input-wrapper">
+            <div className="chat-input-row chat-input-row-hero">
+              <input
+                type="text"
+                value={input}
+                placeholder="Ask about holdings, compliance, or reconciliation… (or @AgentName to address one directly)"
+                onChange={(e) => updateChatHistory({ input: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage(input);
+                }}
+                disabled={loading}
+                autoFocus
+              />
+              <button
+                type="button"
+                className="chat-send"
+                onClick={() => sendMessage(input)}
+                disabled={loading || !input.trim()}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </div>
+            {mentionSuggestions.length > 0 && (
+              <div className="chat-mention-dropdown">
+                {mentionSuggestions.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    className="chat-mention-option"
+                    onClick={() => selectMention(agent)}
+                  >
+                    <AgentIcon seed={agent.template_name + agent.id} size={16} />
+                    {agent.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="chat-suggestions">
@@ -300,26 +342,43 @@ export function ChatPage() {
 
           {error && <div className="chat-error">{error}</div>}
 
-          <div className="chat-input-row">
-            <input
-              type="text"
-              value={input}
-              placeholder="Ask a follow-up…"
-              onChange={(e) => updateChatHistory({ input: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") sendMessage(input);
-              }}
-              disabled={loading}
-            />
-            <button
-              type="button"
-              className="chat-send"
-              onClick={() => sendMessage(input)}
-              disabled={loading || !input.trim()}
-              aria-label="Send"
-            >
-              <ArrowUp size={18} />
-            </button>
+          <div className="chat-input-wrapper">
+            {mentionSuggestions.length > 0 && (
+              <div className="chat-mention-dropdown chat-mention-dropdown-above">
+                {mentionSuggestions.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    className="chat-mention-option"
+                    onClick={() => selectMention(agent)}
+                  >
+                    <AgentIcon seed={agent.template_name + agent.id} size={16} />
+                    {agent.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="chat-input-row">
+              <input
+                type="text"
+                value={input}
+                placeholder="Ask a follow-up…"
+                onChange={(e) => updateChatHistory({ input: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage(input);
+                }}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                className="chat-send"
+                onClick={() => sendMessage(input)}
+                disabled={loading || !input.trim()}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </div>
           </div>
 
           <button type="button" className="chat-reset" onClick={handleNewConversation}>

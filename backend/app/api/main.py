@@ -214,6 +214,15 @@ def patch_agent(agent_id: int, body: UpdateAgentInstanceRequest) -> AgentInstanc
             raise HTTPException(
                 status_code=400, detail=f"Unknown tool(s): {sorted(unknown)}"
             )
+    if "collaborator_ids" in fields:
+        collaborator_ids = fields["collaborator_ids"]
+        if agent_id in collaborator_ids:
+            raise HTTPException(status_code=400, detail="An agent cannot collaborate with itself.")
+        missing = [cid for cid in collaborator_ids if get_instance(cid) is None]
+        if missing:
+            raise HTTPException(
+                status_code=400, detail=f"Unknown agent instance(s): {sorted(missing)}"
+            )
     row = update_instance(agent_id, **fields)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
@@ -488,6 +497,66 @@ def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
 
     thread_id = body.thread_id or f"agent-{agent_id}-preview-{uuid.uuid4()}"
+
+    # Add Agent collaborators (a fixed, build-time roster — the Toolset
+    # tab's "Add agent") — only instances that still exist and are actually
+    # deployed count, so a deleted or since-undeployed collaborator just
+    # quietly drops out rather than erroring. Any dropped id stays in
+    # collaborator_ids untouched; it's the chat-time roster that's filtered,
+    # not the stored configuration.
+    collaborator_instances = [
+        row
+        for row in (get_instance(cid) for cid in instance.get("collaborator_ids") or [])
+        if row is not None and row["status"] == "deployed"
+    ]
+
+    if collaborator_instances:
+        # This agent + its fixed collaborators, routed the same way the
+        # homepage's multi-agent chat routes across its own (dynamic)
+        # roster — same building block, just a fixed roster instead of a
+        # runtime picker. This is what lets one agent absorb several
+        # narrower agents' jobs behind a single description, so the
+        # *homepage's* supervisor has one lean description to route on
+        # instead of many overlapping ones.
+        roster = [instance, *collaborator_instances]
+        agent = build_chat_supervisor(roster, app.state.workflow_configs, app.state.checkpointer)
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "run_name": "agent-collaborator-chat",
+            "callbacks": [get_langfuse_handler()],
+        }
+
+        before_count = len(agent.get_state(config).values.get("messages", []))
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=body.message)]}, config=config
+        )
+
+        collaborator_names = {collaborator_name(i["id"]) for i in roster}
+        routed_to_name = extract_routed_to(result["messages"])
+        matched = next(
+            (i for i in roster if collaborator_name(i["id"]) == routed_to_name), instance
+        )
+
+        if _generate_report_called(result["messages"][before_count:]):
+            pending = get_pending_report(
+                matched["id"], app.state.workflow_configs[matched["template_name"]],
+                app.state.checkpointer,
+            )
+            if pending:
+                return ChatResponse(
+                    thread_id=thread_id,
+                    message="",
+                    pending_approval=PendingApprovalOut(agent_id=matched["id"], **pending),
+                )
+
+        return ChatResponse(
+            thread_id=thread_id,
+            message=extract_final_answer(result["messages"], collaborator_names),
+            routed_to=matched["display_name"],
+        )
+
+    # No collaborators — the original, simpler single-agent path, entirely
+    # unchanged from before Add Agent existed.
     workflow_config = _get_workflow_config(instance["template_name"])
     agent = build_agent_preview_chat(instance, workflow_config, app.state.checkpointer)
     config = {
@@ -519,17 +588,23 @@ def chat_with_agent(agent_id: int, body: ChatRequest) -> ChatResponse:
 
 @app.post("/agents/{agent_id}/chat/decision", response_model=ChatResponse)
 def submit_agent_chat_decision(agent_id: int, body: ChatDecisionRequest) -> ChatResponse:
-    """Approves/rejects this agent's pending report by resuming its report
-    pipeline directly (report_tool.submit_report_decision) — independent of
-    this chat's own conversation state, so the same function backs both
-    this endpoint and the homepage chat's /chat/decision below."""
-    instance = get_instance(agent_id)
+    """Approves/rejects a pending report by resuming its report pipeline
+    directly (report_tool.submit_report_decision) — independent of this
+    chat's own conversation state, so the same function backs both this
+    endpoint and the homepage chat's /chat/decision below.
+
+    body.agent_id lets this resolve to a *collaborator's* report (Add
+    Agent) rather than always this URL's own agent_id — defaults to the
+    URL's agent_id when omitted, so callers that predate Add Agent are
+    unaffected."""
+    target_id = body.agent_id if body.agent_id is not None else agent_id
+    instance = get_instance(target_id)
     if instance is None:
-        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {agent_id}")
+        raise HTTPException(status_code=404, detail=f"Unknown agent instance: {target_id}")
 
     workflow_config = _get_workflow_config(instance["template_name"])
     result = submit_report_decision(
-        agent_id,
+        target_id,
         workflow_config,
         app.state.checkpointer,
         decision=body.decision,

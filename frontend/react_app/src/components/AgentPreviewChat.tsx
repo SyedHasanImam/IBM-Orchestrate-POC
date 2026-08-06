@@ -14,12 +14,13 @@ function messageFromResponse(data: ChatResponse): AgentChatMessage {
   if (data.pending_approval) {
     return {
       role: "approval",
+      agentId: data.pending_approval.agent_id,
       report: data.pending_approval.report,
       approvalMessage: data.pending_approval.message,
       decision: null,
     };
   }
-  return { role: "assistant", content: data.message };
+  return { role: "assistant", content: data.message, routedTo: data.routed_to };
 }
 
 export function AgentPreviewChat({ agentId }: { agentId: number }) {
@@ -52,7 +53,7 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
     }
   }
 
-  async function handleDecision(decision: Decision, messageIndex: number) {
+  async function handleDecision(decision: Decision, messageIndex: number, reportAgentId: number) {
     const state = getAgentChat(agentId);
     if (!state.threadId) return;
 
@@ -63,6 +64,10 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
         decision,
         actor: state.actor,
         comment: state.comment || null,
+        // The report may belong to an Add Agent collaborator, not this
+        // page's own agent — reportAgentId is whichever instance actually
+        // generated it (see messageFromResponse).
+        agent_id: reportAgentId,
       });
       const resolved = getAgentChat(agentId).messages.map((m, i) =>
         i === messageIndex && m.role === "approval" ? { ...m, decision } : m,
@@ -124,7 +129,7 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
                         variant="primary"
                         size="sm"
                         disabled={!actor.trim() || deciding}
-                        onClick={() => handleDecision("approved", index)}
+                        onClick={() => handleDecision("approved", index, message.agentId)}
                       >
                         <Check size={13} />
                         Approve
@@ -133,7 +138,7 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
                         variant="danger"
                         size="sm"
                         disabled={!actor.trim() || deciding}
-                        onClick={() => handleDecision("rejected", index)}
+                        onClick={() => handleDecision("rejected", index, message.agentId)}
                       >
                         <X size={13} />
                         Reject
@@ -150,6 +155,9 @@ export function AgentPreviewChat({ agentId }: { agentId: number }) {
               className={`preview-chat-bubble preview-chat-bubble-${message.role}`}
             >
               {message.role === "assistant" ? <Markdown>{message.content}</Markdown> : message.content}
+              {message.role === "assistant" && message.routedTo && (
+                <div className="preview-chat-routed-to">Routed to: {message.routedTo}</div>
+              )}
             </div>
           );
         })}

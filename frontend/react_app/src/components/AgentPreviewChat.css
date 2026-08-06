@@ -52,6 +52,12 @@
   font-style: italic;
 }
 
+.preview-chat-routed-to {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .preview-chat-bubble-approval {
   align-self: flex-start;
   max-width: 96%;
