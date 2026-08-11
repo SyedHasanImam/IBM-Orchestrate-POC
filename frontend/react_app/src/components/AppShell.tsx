@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="app-brand-mark">
             <Sparkles size={15} />
           </span>
-          <span className="app-topbar-title">Orchestrate POC</span>
+          <span className="app-topbar-title">oorchestrate poc</span>
         </div>
       </header>
 

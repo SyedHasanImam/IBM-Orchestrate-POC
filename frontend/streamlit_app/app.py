@@ -2,8 +2,8 @@ import requests
 import streamlit as st
 from config import BACKEND_API_URL
 
-st.set_page_config(page_title="Orchestrate POC", page_icon="📋")
-st.title("Orchestrate POC")
+st.set_page_config(page_title="oorchestrate poc", page_icon="📋")
+st.title("oorchestrate poc")
 
 
 def render_workflow_tab(workflow_name: str, title: str, run_spinner_text: str) -> None:
